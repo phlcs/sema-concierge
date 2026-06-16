@@ -1,4 +1,5 @@
 import { AiResponseSchema, type AiResponse, FALLBACK_RESPONSE } from './schema'
+import { logger } from '@/lib/logger'
 
 const FORBIDDEN_TERMS = [
   'system prompt',
@@ -58,14 +59,14 @@ export function validateOutput(raw: string): AiResponse {
   const parsed = tryExtractJson(raw)
 
   if (!parsed) {
-    console.warn('[validateOutput] Failed to parse JSON from LLM response')
+    logger.warn('validateOutput: failed to parse JSON from LLM response')
     return FALLBACK_RESPONSE
   }
 
   const result = AiResponseSchema.safeParse(parsed)
 
   if (!result.success) {
-    console.warn('[validateOutput] Zod validation failed:', result.error.issues)
+    logger.warn('validateOutput: Zod validation failed', { issues: result.error.issues.map(i => i.message) })
     return FALLBACK_RESPONSE
   }
 
@@ -78,7 +79,7 @@ export function validateOutput(raw: string): AiResponse {
 
   // Detect system prompt leakage
   if (textLeak(response)) {
-    console.warn('[validateOutput] Detected forbidden term in LLM output — replacing paragraphs')
+    logger.warn('validateOutput: detected forbidden term in LLM output — replacing paragraphs')
     return {
       ...response,
       paragraphs: [

@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import { logger } from '@/lib/logger'
 
 let _redis: Redis | undefined
 
@@ -14,7 +15,7 @@ export function getRedis(): Redis {
   })
 
   _redis.on('error', (err) => {
-    console.error('[Redis] connection error:', err.message)
+    logger.error('Redis connection error', { message: err.message })
   })
 
   return _redis

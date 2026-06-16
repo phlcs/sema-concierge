@@ -34,7 +34,7 @@ export const calcomMock: CalcomAdapter = {
     return { id, meetUrl }
   },
 
-  async cancelBooking(id: string): Promise<void> {
-    console.log(`[calcom mock] cancelado ${id}`)
+  async cancelBooking(_id: string): Promise<void> {
+    // no-op in mock
   },
 }

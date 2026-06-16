@@ -1,3 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# USO EXCLUSIVO EM DESENVOLVIMENTO LOCAL
+# Em produção (Railway), Postgres e Redis são plugins da plataforma,
+# não containers gerenciados por este arquivo.
+# Comando: docker compose up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
   postgres:
     image: postgres:16-alpine

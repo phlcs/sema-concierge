@@ -8,6 +8,7 @@ import { validateInput } from '@/lib/ai/validate-input'
 import { SYSTEM_PROMPT } from '@/lib/ai/system-prompt'
 import { FALLBACK_RESPONSE, BLOCKED_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { checkRateLimit } from '@/lib/ratelimit'
+import { logger } from '@/lib/logger'
 
 /* ----------------------------------------------------------------
    Helpers
@@ -144,8 +145,8 @@ export async function POST(req: NextRequest) {
   try {
     rateResult = await checkRateLimit({ userId: payload.sub, ip, fingerprint })
   } catch (err) {
-    console.error('[/api/chat/send] Rate limit check failed:', err)
-    // If Redis is unavailable, fail open (allow the request) with a warning
+    logger.error('chat/send: rate limit check failed — failing open', { userId: payload.sub, error: err instanceof Error ? err.message : String(err) })
+    // If Redis is unavailable, fail open (allow the request)
     rateResult = { ok: true as const }
   }
 
@@ -211,7 +212,7 @@ export async function POST(req: NextRequest) {
   try {
     aiResponse = await chatComplete({ systemPrompt: SYSTEM_PROMPT, history, userMessage: text })
   } catch (err) {
-    console.error('[/api/chat/send] chatComplete threw unexpectedly:', err)
+    logger.error('chat/send: chatComplete threw unexpectedly', { userId: payload.sub, error: err instanceof Error ? err.message : String(err) })
     aiResponse = FALLBACK_RESPONSE
   }
 

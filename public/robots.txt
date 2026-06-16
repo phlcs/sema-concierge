@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /app/
+Disallow: /api/
+Disallow: /booking/
+
+Sitemap: https://pergunteaoseucontador.com.br/sitemap.xml

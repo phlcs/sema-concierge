@@ -18,16 +18,13 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Pergunte ao seu Contador — Seu IR resolvido em 1 hora',
+  title: {
+    default: 'Pergunte ao seu Contador',
+    template: '%s | Pergunte ao seu Contador',
+  },
   description:
     'Sessão individual com um contador de verdade. Diagnóstico fiscal, orientação passo a passo e checklist personalizado. R$ 197, pagamento único, Google Meet.',
-  openGraph: {
-    title: 'Pergunte ao seu Contador — Seu IR resolvido em 1 hora',
-    description:
-      'Sessão individual com um contador de verdade. Diagnóstico fiscal, orientação passo a passo e checklist personalizado. R$ 197, pagamento único.',
-    locale: 'pt_BR',
-    type: 'website',
-  },
+  robots: { index: true, follow: true },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

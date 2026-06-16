@@ -1,4 +1,5 @@
 import { getRedis } from './redis'
+import { logger } from '@/lib/logger'
 
 const DAILY_GLOBAL_LIMIT = parseInt(process.env.DAILY_GLOBAL_LIMIT ?? '200', 10)
 const DAILY_USER_LIMIT = parseInt(process.env.DAILY_USER_LIMIT ?? '5', 10)
@@ -40,11 +41,11 @@ export async function checkRateLimit({
   const globalCount = (globalResults?.[0]?.[1] as number) ?? 0
 
   if (globalCount >= DAILY_GLOBAL_LIMIT * 0.5 && globalCount < DAILY_GLOBAL_LIMIT * 0.8) {
-    console.warn(`[RateLimit] Global usage at 50%: ${globalCount}/${DAILY_GLOBAL_LIMIT}`)
+    logger.warn('RateLimit: global usage at 50%', { count: globalCount, limit: DAILY_GLOBAL_LIMIT })
   } else if (globalCount >= DAILY_GLOBAL_LIMIT * 0.8 && globalCount < DAILY_GLOBAL_LIMIT) {
-    console.warn(`[RateLimit] Global usage at 80%: ${globalCount}/${DAILY_GLOBAL_LIMIT}`)
+    logger.warn('RateLimit: global usage at 80%', { count: globalCount, limit: DAILY_GLOBAL_LIMIT })
   } else if (globalCount >= DAILY_GLOBAL_LIMIT) {
-    console.error(`[RateLimit] Global limit reached: ${globalCount}/${DAILY_GLOBAL_LIMIT} — BLOCKING ALL USERS`)
+    logger.error('RateLimit: global limit reached — blocking all users', { count: globalCount, limit: DAILY_GLOBAL_LIMIT })
     return { ok: false, reason: 'global_daily' }
   }
 

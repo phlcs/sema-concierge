@@ -200,9 +200,11 @@ function AssistantBubble({
 export default function ChatPage({
   user,
   initialConversations,
+  autoBook = false,
 }: {
   user: User
   initialConversations: ConversationSummary[]
+  autoBook?: boolean
 }) {
   const router = useRouter()
 
@@ -214,8 +216,10 @@ export default function ChatPage({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [bookingContext, setBookingContext] = useState<string | null | undefined>(undefined)
   // undefined = closed, null | string = open (null means no context)
+  const [bookingContext, setBookingContext] = useState<string | null | undefined>(
+    autoBook ? null : undefined
+  )
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)

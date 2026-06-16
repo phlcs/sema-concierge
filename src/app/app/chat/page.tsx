@@ -4,20 +4,27 @@ import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import ChatPage from './ChatPage'
 
-export default async function ChatRoute() {
+export default async function ChatRoute({
+  searchParams,
+}: {
+  searchParams: Promise<{ action?: string }>
+}) {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) redirect('/login')
   const payload = verifyToken(token)
   if (!payload) redirect('/login')
 
-  const rows = await prisma.conversation.findMany({
-    where: { userId: payload.sub },
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
-  })
+  const [rows, params] = await Promise.all([
+    prisma.conversation.findMany({
+      where: { userId: payload.sub },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    }),
+    searchParams,
+  ])
 
   const initialConversations = rows.map((c) => {
     const last = c.messages[0]
@@ -35,6 +42,7 @@ export default async function ChatRoute() {
     <ChatPage
       user={{ id: payload.sub, name: payload.name, email: payload.email }}
       initialConversations={initialConversations}
+      autoBook={params.action === 'book'}
     />
   )
 }

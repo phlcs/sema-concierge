@@ -1,6 +1,7 @@
 import { callAnthropic } from './anthropic'
 import { callGemini } from './gemini'
 import { FALLBACK_RESPONSE, type AiResponse } from './schema'
+import { logger } from '@/lib/logger'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -23,7 +24,7 @@ export async function chatComplete({
     }
     return await callAnthropic(systemPrompt, history, userMessage)
   } catch (err) {
-    console.error(`[chatComplete] Error from provider "${provider}":`, err)
+    logger.error('chatComplete: provider error', { provider, error: err instanceof Error ? err.message : String(err) })
     return FALLBACK_RESPONSE
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, FormEvent, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // ---- SVG icons ----
 const MailIcon = () => (
@@ -41,8 +41,10 @@ const CheckSm = () => (
 // ---- Validation helpers ----
 const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextUrl = searchParams.get('next') ?? '/app'
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -95,7 +97,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/app')
+      router.push(nextUrl)
       router.refresh()
     } catch {
       setApiError('Erro de conexão. Verifique sua internet e tente novamente.')
@@ -264,5 +266,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

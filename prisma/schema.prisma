@@ -73,6 +73,19 @@ model UsageLog {
   user        User?    @relation(fields: [userId], references: [id])
 }
 
+model Cliente {
+  id             String   @id @default(cuid())
+  nomeNegocio    String
+  phoneNumberId  String   @unique
+  wabaId         String?
+  whatsappToken  String
+  emailPrestador String
+  cerebro        Json
+  status         String   @default("ativo")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 enum MessageRole {
   USER
   ASSISTANT

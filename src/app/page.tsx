@@ -54,8 +54,8 @@ export default async function LandingPage() {
           <a href="#topo" className="nav-logo">
             <div className="nav-icon">?</div>
             <div className="nav-brand">
-              <span className="nav-pre">Pergunte ao seu</span>
-              <strong>Contador</strong>
+              <span className="nav-pre">Sema</span>
+              <strong>Concierge</strong>
             </div>
           </a>
           <div className="nav-actions">
@@ -305,7 +305,7 @@ export default async function LandingPage() {
       {/* FOOTER */}
       <footer>
         <div className="container">
-          <p>© 2025 Pergunte ao seu Contador. Todos os direitos reservados.</p>
+          <p>© 2025 Sema Concierge. Todos os direitos reservados.</p>
         </div>
       </footer>
 

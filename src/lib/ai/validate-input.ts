@@ -1,5 +1,5 @@
 type InputOk = { ok: true }
-type InputBlocked = { ok: false; reason: string }
+type InputBlocked = { ok: false; reason: string; matchedPattern?: string; matchedIndex?: number }
 
 const TRIGGER_PATTERNS: RegExp[] = [
   /ignore\s+as\s+instru[çc][õo]es/i,
@@ -32,9 +32,11 @@ export function validateInput(message: string): InputOk | InputBlocked {
     return { ok: false, reason: 'too_long' }
   }
 
-  for (const pattern of TRIGGER_PATTERNS) {
+  for (let i = 0; i < TRIGGER_PATTERNS.length; i++) {
+    const pattern = TRIGGER_PATTERNS[i]
     if (pattern.test(message)) {
-      return { ok: false, reason: 'injection_attempt' }
+      // TEMP DIAGNOSTIC: expor qual regex casou pra investigar falsos positivos
+      return { ok: false, reason: 'injection_attempt', matchedPattern: pattern.toString(), matchedIndex: i }
     }
   }
 

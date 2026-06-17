@@ -96,7 +96,6 @@ async function tratarMensagem(args: {
   }
 
   await enviarTexto({
-    token: cliente.whatsappToken,
     phoneNumberId: cliente.phoneNumberId,
     para: deNumero,
     mensagem: texto,

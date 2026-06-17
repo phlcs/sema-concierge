@@ -2,20 +2,19 @@ import { logger } from '@/lib/logger'
 import { normalizarNumero } from './phone'
 
 type EnviarTextoArgs = {
-  token: string
   phoneNumberId: string
   para: string
   mensagem: string
 }
 
 export async function enviarTexto({
-  token,
   phoneNumberId,
   para,
   mensagem,
 }: EnviarTextoArgs): Promise<void> {
+  const token = process.env.WHATSAPP_TOKEN
   if (!token) {
-    logger.warn('sem token para o cliente', { phoneNumberId })
+    logger.warn('WHATSAPP_TOKEN ausente')
     return
   }
 

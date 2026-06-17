@@ -18,9 +18,6 @@ export async function enviarTexto({
     logger.warn('sem token para o cliente', { phoneNumberId })
     return
   }
-
-  console.log("DEBUG token -> tamanho:", token?.length, "final:", token?.slice(-4), "vazio:", !token)
-
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`
   const body = {
     messaging_product: 'whatsapp',

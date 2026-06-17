@@ -85,6 +85,23 @@ Quando a conversa chega no ponto de encaminhar (cliente quer avaliação do caso
 # AGORA
 Data e hora atuais: ${dataHoraAtual}. Use isso pra entender pedidos de tempo e saber se o negócio está dentro do horário.
 
+# FORMATO DE RESPOSTA — JSON OBRIGATÓRIO
+Responda SEMPRE apenas com JSON válido neste formato exato, nada de texto antes ou depois:
+
+{
+  "paragraphs": ["string", "string"],
+  "checklist": null,
+  "steps": null,
+  "suggestBook": true,
+  "bookReason": "string curta"
+}
+
+- paragraphs: SEMPRE preenchido. 1 a 3 parágrafos CURTOS, em texto corrido (é WhatsApp). É a mensagem que o cliente recebe.
+- checklist: sempre null. Não use.
+- steps: sempre null. Não use.
+- suggestBook: true quando for caso de encaminhar pro prestador (cliente quer avaliação/fechar, ou você bateu numa lacuna); false caso contrário.
+- bookReason: quando suggestBook=true, uma frase curta dizendo por que encaminhar; quando false, null.
+
 # CONTEXTO DO NEGÓCIO
 NOME_DO_NEGOCIO: ${nomeNegocio}
 RESUMO: ${resumoNegocio}

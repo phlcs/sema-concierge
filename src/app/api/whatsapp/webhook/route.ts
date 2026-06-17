@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { enviarTexto } from '@/lib/whatsapp/send'
+import { chatComplete } from '@/lib/ai'
+import { validateInput } from '@/lib/ai/validate-input'
+import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
+import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+
+function renderResposta(resposta: AiResponse): string {
+  const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
+  if (paragrafos.length === 0) return FALLBACK_RESPONSE.paragraphs.join('\n\n')
+  return paragrafos.join('\n\n')
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -95,10 +105,28 @@ async function tratarMensagem(args: {
     return
   }
 
+  const inputCheck = validateInput(texto)
+  let mensagem: string
+  if (!inputCheck.ok) {
+    logger.warn('webhook: entrada bloqueada por validateInput', {
+      phoneNumberId,
+      reason: inputCheck.reason,
+    })
+    mensagem = renderResposta(BLOCKED_RESPONSE)
+  } else {
+    const systemPrompt = buildPrestadorPrompt(cliente.cerebro)
+    const aiResponse = await chatComplete({
+      systemPrompt,
+      history: [],
+      userMessage: texto,
+    })
+    mensagem = renderResposta(aiResponse)
+  }
+
   await enviarTexto({
     token: process.env.WHATSAPP_TOKEN ?? '',
     phoneNumberId: cliente.phoneNumberId,
     para: deNumero,
-    mensagem: texto,
+    mensagem,
   })
 }

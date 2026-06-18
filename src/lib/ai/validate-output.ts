@@ -8,7 +8,6 @@ const FORBIDDEN_TERMS = [
   'Claude',
   'Gemini',
   'Anthropic',
-  'Google',
 ]
 
 function containsForbiddenTerm(text: string): boolean {

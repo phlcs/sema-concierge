@@ -74,16 +74,40 @@ model UsageLog {
 }
 
 model Cliente {
-  id             String   @id @default(cuid())
+  id             String                 @id @default(cuid())
   nomeNegocio    String
-  phoneNumberId  String   @unique
+  phoneNumberId  String                 @unique
   wabaId         String?
   whatsappToken  String
   emailPrestador String
   cerebro        Json
-  status         String   @default("ativo")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String                 @default("ativo")
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  conversas      WhatsappConversation[]
+}
+
+model WhatsappConversation {
+  id            String            @id @default(cuid())
+  clienteId     String
+  numeroContato String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  cliente       Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  mensagens     WhatsappMessage[]
+
+  @@unique([clienteId, numeroContato])
+}
+
+model WhatsappMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  texto          String
+  createdAt      DateTime             @default(now())
+  conversation   WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }
 
 enum MessageRole {

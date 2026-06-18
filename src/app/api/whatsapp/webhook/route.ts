@@ -7,14 +7,6 @@ import { validateInput } from '@/lib/ai/validate-input'
 import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 
-// TEMP DIAGNOSTIC: detectar caminho da resposta (normal / fallback / output-leak)
-function classifyResponsePath(resp: AiResponse): 'fallback_from_chat_error' | 'output_term_leak' | 'normal' {
-  if (resp === FALLBACK_RESPONSE) return 'fallback_from_chat_error'
-  const first = resp.paragraphs?.[0] ?? ''
-  if (first.startsWith('Sou o assistente do Rafael, especializado em IR')) return 'output_term_leak'
-  return 'normal'
-}
-
 function renderResposta(resposta: AiResponse): string {
   const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
   if (paragrafos.length === 0) return FALLBACK_RESPONSE.paragraphs.join('\n\n')
@@ -88,13 +80,6 @@ async function processar(body: MetaBody): Promise<void> {
         const deNumero = message.from
         if (!texto || !deNumero) continue
 
-        // TEMP DIAGNOSTIC: tamanho e prefixo do texto recebido do Meta
-        logger.info('webhook[DIAG]: texto recebido', {
-          phoneNumberId,
-          textoLen: texto.length,
-          textoPrefix: texto.slice(0, 40),
-        })
-
         await tratarMensagem({ phoneNumberId, deNumero, texto })
       }
     }
@@ -126,31 +111,14 @@ async function tratarMensagem(args: {
     logger.warn('webhook: entrada bloqueada por validateInput', {
       phoneNumberId,
       reason: inputCheck.reason,
-      // TEMP DIAGNOSTIC: qual regex casou (presente só quando reason=injection_attempt)
-      matchedIndex: inputCheck.matchedIndex,
-      matchedPattern: inputCheck.matchedPattern,
-      textoLen: texto.length,
-      textoPrefix: texto.slice(0, 40),
     })
     mensagem = renderResposta(BLOCKED_RESPONSE)
   } else {
-    // TEMP DIAGNOSTIC: passou pelo validateInput
-    logger.info('webhook[DIAG]: validateInput passou — chamando chatComplete', {
-      phoneNumberId,
-      textoLen: texto.length,
-    })
     const systemPrompt = buildPrestadorPrompt(cliente.cerebro)
     const aiResponse = await chatComplete({
       systemPrompt,
       history: [],
       userMessage: texto,
-    })
-    // TEMP DIAGNOSTIC: por qual caminho a resposta saiu
-    const path = classifyResponsePath(aiResponse)
-    logger.info('webhook[DIAG]: caminho da resposta', {
-      phoneNumberId,
-      path,
-      paragraphsPrefix: (aiResponse.paragraphs?.[0] ?? '').slice(0, 80),
     })
     mensagem = renderResposta(aiResponse)
   }

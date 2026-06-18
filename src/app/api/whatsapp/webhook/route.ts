@@ -6,6 +6,15 @@ import { chatComplete } from '@/lib/ai'
 import { validateInput } from '@/lib/ai/validate-input'
 import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+import { normalizarNumero } from '@/lib/whatsapp/phone'
+import {
+  acharOuCriarConversa,
+  carregarHistorico,
+  salvarMensagem,
+} from '@/lib/whatsapp/conversa'
+
+const INSTRUCAO_CONTINUACAO =
+  '\n\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n'
 
 function renderResposta(resposta: AiResponse): string {
   const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
@@ -105,6 +114,12 @@ async function tratarMensagem(args: {
     return
   }
 
+  const numeroContato = normalizarNumero(deNumero)
+  const { conversaId, ehPrimeiraMensagem } = await acharOuCriarConversa(
+    cliente.id,
+    numeroContato,
+  )
+
   const inputCheck = validateInput(texto)
   let mensagem: string
   if (!inputCheck.ok) {
@@ -114,14 +129,24 @@ async function tratarMensagem(args: {
     })
     mensagem = renderResposta(BLOCKED_RESPONSE)
   } else {
-    const systemPrompt = buildPrestadorPrompt(cliente.cerebro)
-    const aiResponse = await chatComplete({
-      systemPrompt,
-      history: [],
-      userMessage: texto,
-    })
+    const history = await carregarHistorico(conversaId)
+    let systemPrompt = buildPrestadorPrompt(cliente.cerebro)
+    if (!ehPrimeiraMensagem) systemPrompt += INSTRUCAO_CONTINUACAO
+
+    let aiResponse: AiResponse
+    try {
+      aiResponse = await chatComplete({ systemPrompt, history, userMessage: texto })
+    } catch (err) {
+      logger.error('webhook: chatComplete falhou', {
+        erro: err instanceof Error ? err.message : String(err),
+      })
+      aiResponse = FALLBACK_RESPONSE
+    }
     mensagem = renderResposta(aiResponse)
   }
+
+  await salvarMensagem(conversaId, 'USER', texto)
+  await salvarMensagem(conversaId, 'ASSISTANT', mensagem)
 
   await enviarTexto({
     token: process.env.WHATSAPP_TOKEN ?? '',

@@ -12,6 +12,9 @@ import {
   carregarHistorico,
   salvarMensagem,
 } from '@/lib/whatsapp/conversa'
+import { resend } from '@/lib/integrations/resend'
+
+const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
 const INSTRUCAO_CONTINUACAO =
   '\n\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n'
@@ -122,6 +125,7 @@ async function tratarMensagem(args: {
 
   const inputCheck = validateInput(texto)
   let mensagem: string
+  let aiResponse: AiResponse = BLOCKED_RESPONSE
   if (!inputCheck.ok) {
     logger.warn('webhook: entrada bloqueada por validateInput', {
       phoneNumberId,
@@ -133,7 +137,6 @@ async function tratarMensagem(args: {
     let systemPrompt = buildPrestadorPrompt(cliente.cerebro)
     if (!ehPrimeiraMensagem) systemPrompt += INSTRUCAO_CONTINUACAO
 
-    let aiResponse: AiResponse
     try {
       aiResponse = await chatComplete({ systemPrompt, history, userMessage: texto })
     } catch (err) {
@@ -154,4 +157,73 @@ async function tratarMensagem(args: {
     para: deNumero,
     mensagem,
   })
+
+  try {
+    await dispararHandoffSeNecessario({
+      aiResponse,
+      conversaId,
+      cliente,
+      numeroContato,
+    })
+  } catch (err) {
+    logger.error('webhook: erro no handoff por email', {
+      erro: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+async function dispararHandoffSeNecessario(args: {
+  aiResponse: AiResponse
+  conversaId: string
+  cliente: { id: string; nomeNegocio: string; emailPrestador: string }
+  numeroContato: string
+}): Promise<void> {
+  const { aiResponse, conversaId, cliente, numeroContato } = args
+  if (aiResponse.suggestBook !== true) return
+
+  const conversa = await prisma.whatsappConversation.findUnique({
+    where: { id: conversaId },
+    select: { handoffEm: true },
+  })
+
+  const agora = new Date()
+  const ultimo = conversa?.handoffEm ?? null
+  if (ultimo && agora.getTime() - ultimo.getTime() < HANDOFF_COOLDOWN_MS) {
+    logger.info('handoff pulado (dentro de 24h)', {
+      conversaId,
+      ultimoHandoffEm: ultimo.toISOString(),
+    })
+    return
+  }
+
+  const result = await resend.enviarHandoff({
+    emailPrestador: cliente.emailPrestador,
+    nomeNegocio: cliente.nomeNegocio,
+    leadNome: aiResponse.leadNome ?? null,
+    leadContato: numeroContato,
+    leadIntencao: aiResponse.leadIntencao ?? null,
+    leadResumo: aiResponse.leadResumo ?? null,
+    quando: agora,
+  })
+
+  if (result.success) {
+    await prisma.whatsappConversation.update({
+      where: { id: conversaId },
+      data: { handoffEm: agora },
+    })
+    logger.info('handoff enviado', {
+      conversaId,
+      emailId: result.id,
+      emailPrestador: cliente.emailPrestador,
+      leadNome: aiResponse.leadNome ?? null,
+      leadContato: numeroContato,
+      leadIntencao: aiResponse.leadIntencao ?? null,
+      leadResumo: aiResponse.leadResumo ?? null,
+    })
+  } else {
+    logger.warn('handoff falhou (success=false)', {
+      conversaId,
+      emailId: result.id,
+    })
+  }
 }

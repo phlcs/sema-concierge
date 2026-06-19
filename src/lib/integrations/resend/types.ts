@@ -5,6 +5,16 @@ export type BookingConfirmationInput = {
   meetUrl: string
 }
 
+export type HandoffInput = {
+  emailPrestador: string
+  nomeNegocio: string
+  leadNome: string | null
+  leadContato: string
+  leadIntencao: string | null
+  leadResumo: string | null
+  quando: Date
+}
+
 export type EmailResult = {
   id: string
   success: boolean
@@ -12,4 +22,5 @@ export type EmailResult = {
 
 export interface ResendAdapter {
   sendBookingConfirmation(input: BookingConfirmationInput): Promise<EmailResult>
+  enviarHandoff(input: HandoffInput): Promise<EmailResult>
 }

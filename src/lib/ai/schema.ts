@@ -13,6 +13,9 @@ export const AiResponseSchema = z.object({
     .nullish(),
   suggestBook: z.boolean(),
   bookReason: z.string().nullish(),
+  leadNome: z.string().nullish(),
+  leadIntencao: z.string().nullish(),
+  leadResumo: z.string().nullish(),
 })
 
 export type AiResponse = z.infer<typeof AiResponseSchema>
@@ -23,6 +26,9 @@ export const FALLBACK_RESPONSE: AiResponse = {
   steps: null,
   suggestBook: false,
   bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
 }
 
 export const BLOCKED_RESPONSE: AiResponse = {
@@ -33,4 +39,7 @@ export const BLOCKED_RESPONSE: AiResponse = {
   steps: null,
   suggestBook: false,
   bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
 }

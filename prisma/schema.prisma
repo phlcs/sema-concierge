@@ -91,6 +91,7 @@ model WhatsappConversation {
   id            String            @id @default(cuid())
   clienteId     String
   numeroContato String
+  handoffEm     DateTime?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   cliente       Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)

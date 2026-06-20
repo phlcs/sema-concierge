@@ -31,6 +31,19 @@ export const FALLBACK_RESPONSE: AiResponse = {
   leadResumo: null,
 }
 
+export const MAINTENANCE_RESPONSE: AiResponse = {
+  paragraphs: [
+    'Este atendimento está temporariamente em manutenção. Por favor, tente novamente mais tarde.',
+  ],
+  checklist: null,
+  steps: null,
+  suggestBook: false,
+  bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
+}
+
 export const BLOCKED_RESPONSE: AiResponse = {
   paragraphs: [
     'Posso ajudar com dúvidas de Imposto de Renda e contabilidade pra pessoa física. Quer tirar alguma dúvida sobre isso?',

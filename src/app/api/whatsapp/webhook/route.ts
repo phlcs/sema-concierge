@@ -5,7 +5,12 @@ import { enviarTexto } from '@/lib/whatsapp/send'
 import { chatComplete } from '@/lib/ai'
 import { validateInput } from '@/lib/ai/validate-input'
 import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
-import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+import {
+  BLOCKED_RESPONSE,
+  FALLBACK_RESPONSE,
+  MAINTENANCE_RESPONSE,
+  type AiResponse,
+} from '@/lib/ai/schema'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
 import {
   acharOuCriarConversa,
@@ -109,6 +114,25 @@ async function tratarMensagem(args: {
 
   if (!cliente) {
     logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
+    return
+  }
+
+  if (cliente.status === 'manutencao') {
+    const numeroContato = normalizarNumero(deNumero)
+    const { conversaId } = await acharOuCriarConversa(cliente.id, numeroContato)
+    const mensagem = renderResposta(MAINTENANCE_RESPONSE)
+
+    await salvarMensagem(conversaId, 'USER', texto)
+    await salvarMensagem(conversaId, 'ASSISTANT', mensagem)
+
+    await enviarTexto({
+      token: process.env.WHATSAPP_TOKEN ?? '',
+      phoneNumberId: cliente.phoneNumberId,
+      para: deNumero,
+      mensagem,
+    })
+
+    logger.info('cliente em manutencao, auto-reply enviado', { phoneNumberId })
     return
   }
 

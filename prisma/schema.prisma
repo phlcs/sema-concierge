@@ -7,72 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  name          String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  bookings      Booking[]
-  conversations Conversation[]
-  payments      Payment[]
-  usageLogs     UsageLog[]
-}
-
-model Conversation {
-  id        String    @id @default(cuid())
-  userId    String
-  title     String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
-}
-
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  role           MessageRole
-  content        Json
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-}
-
-model Booking {
-  id          String        @id @default(cuid())
-  userId      String
-  scheduledAt DateTime
-  status      BookingStatus @default(PENDING)
-  externalId  String?
-  meetUrl     String?
-  createdAt   DateTime      @default(now())
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments    Payment[]
-}
-
-model Payment {
-  id          String        @id @default(cuid())
-  userId      String
-  bookingId   String?
-  amountCents Int
-  status      PaymentStatus @default(PENDING)
-  externalId  String?
-  createdAt   DateTime      @default(now())
-  booking     Booking?      @relation(fields: [bookingId], references: [id])
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model UsageLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  ip          String
-  fingerprint String
-  action      String
-  createdAt   DateTime @default(now())
-  user        User?    @relation(fields: [userId], references: [id])
-}
-
 model Cliente {
   id             String                 @id @default(cuid())
   nomeNegocio    String
@@ -115,18 +49,4 @@ model WhatsappMessage {
 enum MessageRole {
   USER
   ASSISTANT
-}
-
-enum BookingStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
 }

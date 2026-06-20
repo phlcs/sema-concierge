@@ -54,6 +54,7 @@ export default async function ClientesPage() {
                   <th>Negócio</th>
                   <th>E-mail do prestador</th>
                   <th>Status</th>
+                  <th className="col-acao">Conversas</th>
                   <th className="col-acao">Cérebro</th>
                   <th className="col-acao">Ação</th>
                 </tr>
@@ -70,6 +71,11 @@ export default async function ClientesPage() {
                           <span className={s.dot} aria-hidden />
                           {s.label}
                         </span>
+                      </td>
+                      <td className="col-acao">
+                        <Link className="link-action" href={`/admin/clientes/${c.id}/conversas`}>
+                          Ver conversas
+                        </Link>
                       </td>
                       <td className="col-acao">
                         <Link className="link-action" href={`/admin/clientes/${c.id}/cerebro`}>

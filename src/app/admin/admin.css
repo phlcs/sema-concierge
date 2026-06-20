@@ -438,3 +438,105 @@
   gap: 12px;
   margin-top: 20px;
 }
+
+.sema-admin .badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.sema-admin .badge-revisar {
+  background: var(--cream);
+  color: var(--forest-2);
+}
+
+.sema-admin .badge-handoff {
+  background: transparent;
+  color: #d6a85b;
+  border: 1px solid #d6a85b;
+}
+
+.sema-admin .badge-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sema-admin .clientes-table tr.row-revisar td {
+  background: rgba(237, 242, 158, 0.06);
+  border-left: 3px solid var(--cream);
+}
+
+.sema-admin .clientes-table tr.row-revisar td:first-child {
+  padding-left: 13px;
+}
+
+.sema-admin .chat-wrap {
+  margin-top: 16px;
+}
+
+.sema-admin .chat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-height: 36px;
+}
+
+.sema-admin .chat-list {
+  list-style: none;
+  padding: 16px;
+  margin: 0;
+  background: var(--forest);
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sema-admin .chat-msg {
+  display: flex;
+  width: 100%;
+}
+
+.sema-admin .chat-msg.is-user {
+  justify-content: flex-start;
+}
+
+.sema-admin .chat-msg.is-assistant {
+  justify-content: flex-end;
+}
+
+.sema-admin .chat-bubble {
+  max-width: 75%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--green);
+  background: var(--forest-2);
+}
+
+.sema-admin .chat-msg.is-assistant .chat-bubble {
+  background: var(--green);
+  border-color: var(--green-2);
+}
+
+.sema-admin .chat-texto {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--paper);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.sema-admin .chat-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(244, 246, 236, 0.5);
+  text-align: right;
+}

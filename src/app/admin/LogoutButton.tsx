@@ -15,7 +15,7 @@ export default function LogoutButton() {
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={loading}>
+    <button type="button" className="btn-secondary" onClick={onClick} disabled={loading}>
       {loading ? 'Saindo…' : 'Sair'}
     </button>
   )

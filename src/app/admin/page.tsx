@@ -8,14 +8,15 @@ export default async function AdminHomePage() {
   }
 
   return (
-    <div className="shell">
+    <>
       <div className="topbar">
-        <h1>Painel Sema</h1>
+        <span className="brand">Painel Sema</span>
         <LogoutButton />
       </div>
-      <div className="card">
-        <p>Em construção.</p>
+      <div className="shell">
+        <h1>Visão geral</h1>
+        <p className="muted">As seções do painel entram em breve.</p>
       </div>
-    </div>
+    </>
   )
 }

@@ -34,26 +34,28 @@ export default function AdminLoginPage() {
 
   return (
     <div className="login-wrap">
-      <div className="card">
-        <h1>Painel Sema</h1>
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label htmlFor="password">Senha</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              autoFocus
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" disabled={loading}>
-            {loading ? 'Entrando…' : 'Entrar'}
-          </button>
-          {error && <div className="error">{error}</div>}
-        </form>
+      <div className="login-card">
+        <div className="card">
+          <h1>Painel Sema</h1>
+          <form onSubmit={onSubmit}>
+            <div className="field">
+              <label htmlFor="password">Senha</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit" className="btn-block" disabled={loading}>
+              {loading ? 'Entrando…' : 'Entrar'}
+            </button>
+            {error && <div className="error">{error}</div>}
+          </form>
+        </div>
       </div>
     </div>
   )

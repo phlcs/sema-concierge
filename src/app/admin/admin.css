@@ -194,3 +194,136 @@
   color: rgba(244, 246, 236, 0.6);
   font-size: 14px;
 }
+
+.sema-admin .topbar .brand a {
+  color: inherit;
+}
+
+.sema-admin .topbar .brand a:hover {
+  text-decoration: none;
+}
+
+.sema-admin .breadcrumb {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.sema-admin .nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.sema-admin .nav-list li {
+  margin: 0 0 8px;
+}
+
+.sema-admin .table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.sema-admin .clientes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.sema-admin .clientes-table th,
+.sema-admin .clientes-table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--green);
+  vertical-align: middle;
+}
+
+.sema-admin .clientes-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sema-admin .clientes-table th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(244, 246, 236, 0.55);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.sema-admin .clientes-table td.muted {
+  color: rgba(244, 246, 236, 0.6);
+}
+
+.sema-admin .col-acao {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.sema-admin .status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sema-admin .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(244, 246, 236, 0.4);
+}
+
+.sema-admin .dot.ativo {
+  background: var(--lime);
+  box-shadow: 0 0 0 3px rgba(145, 169, 85, 0.18);
+}
+
+.sema-admin .dot.manutencao {
+  background: #d6a85b;
+  box-shadow: 0 0 0 3px rgba(214, 168, 91, 0.18);
+}
+
+.sema-admin .dot.outro {
+  background: rgba(244, 246, 236, 0.35);
+}
+
+.sema-admin .toggle-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sema-admin .btn-toggle {
+  background: transparent;
+  border: 1px solid var(--green-2);
+  color: var(--paper);
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.sema-admin .btn-toggle.on {
+  border-color: #d6a85b;
+  color: #d6a85b;
+}
+
+.sema-admin .btn-toggle.on:hover {
+  background: rgba(214, 168, 91, 0.1);
+  border-color: #d6a85b;
+  color: #d6a85b;
+}
+
+.sema-admin .btn-toggle.off {
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+.sema-admin .btn-toggle.off:hover {
+  background: rgba(145, 169, 85, 0.1);
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+.sema-admin .error.inline {
+  margin-top: 0;
+}

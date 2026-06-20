@@ -18,6 +18,7 @@ import {
   salvarMensagem,
 } from '@/lib/whatsapp/conversa'
 import { resend } from '@/lib/integrations/resend'
+import { precisaRevisar } from '@/lib/qa/keywords'
 
 const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
@@ -181,6 +182,20 @@ async function tratarMensagem(args: {
     para: deNumero,
     mensagem,
   })
+
+  try {
+    if (precisaRevisar(texto) || precisaRevisar(mensagem)) {
+      await prisma.whatsappConversation.update({
+        where: { id: conversaId },
+        data: { revisar: true },
+      })
+      logger.info('conversa marcada pra revisão', { conversaId })
+    }
+  } catch (err) {
+    logger.error('webhook: erro ao marcar conversa para revisão', {
+      erro: err instanceof Error ? err.message : String(err),
+    })
+  }
 
   try {
     await dispararHandoffSeNecessario({

@@ -24,24 +24,88 @@ function formatarQuando(quando: Date): string {
   }).format(quando)
 }
 
-function montarHtml(input: HandoffInput): string {
+function formatarDiaMes(quando: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+  }).format(quando)
+}
+
+type CamposLead = {
+  nome: string
+  contato: string
+  intencao: string
+  resumo: string
+  quando: string
+}
+
+function camposDoLead(input: HandoffInput): CamposLead {
   const naoInformado = 'não informado'
-  const nome = input.leadNome ?? naoInformado
-  const intencao = input.leadIntencao ?? naoInformado
-  const resumo = input.leadResumo ?? naoInformado
-  const quando = formatarQuando(input.quando)
+  return {
+    nome: input.leadNome ?? naoInformado,
+    contato: input.leadContato,
+    intencao: input.leadIntencao ?? naoInformado,
+    resumo: input.leadResumo ?? naoInformado,
+    quando: formatarQuando(input.quando),
+  }
+}
+
+function montarHtml(input: HandoffInput): string {
+  const c = camposDoLead(input)
+  const fontStack = "Arial, Helvetica, sans-serif"
+
+  const linha = (rotulo: string, valor: string, destaque = false) => `
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #E4E8D6;">
+                  <div style="font-family: ${fontStack}; font-size: 12px; color: #32572C; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">${escapeHtml(rotulo)}</div>
+                  <div style="font-family: ${fontStack}; font-size: ${destaque ? '18px' : '15px'}; color: #0E1F0F; font-weight: ${destaque ? '700' : '400'}; line-height: 1.4;">${escapeHtml(valor)}</div>
+                </td>
+              </tr>`
 
   return `<!doctype html>
 <html lang="pt-BR">
-  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; line-height: 1.5;">
-    <h2 style="margin-bottom: 16px;">Novo lead — ${escapeHtml(input.nomeNegocio)}</h2>
-    <p><strong>Nome:</strong> ${escapeHtml(nome)}</p>
-    <p><strong>Contato:</strong> ${escapeHtml(input.leadContato)}</p>
-    <p><strong>O que quer:</strong> ${escapeHtml(intencao)}</p>
-    <p><strong>Resumo:</strong> ${escapeHtml(resumo)}</p>
-    <p><strong>Quando:</strong> ${escapeHtml(quando)}</p>
+  <body style="margin: 0; padding: 0; background-color: #F4F6EC;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F4F6EC;">
+      <tr>
+        <td align="center" style="padding: 32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #FFFFFF; border: 1px solid #E4E8D6; border-top: 3px solid #91A955;">
+            <tr>
+              <td style="padding: 24px 28px 8px 28px;">
+                <div style="font-family: ${fontStack}; font-size: 11px; color: #32572C; text-transform: uppercase; letter-spacing: 0.08em;">Sema</div>
+                <div style="font-family: ${fontStack}; font-size: 20px; color: #142A15; font-weight: 700; margin-top: 4px;">Novo lead</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 28px 24px 28px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  ${linha('Nome', c.nome, true)}
+                  ${linha('Contato', c.contato)}
+                  ${linha('O que quer', c.intencao)}
+                  ${linha('Resumo', c.resumo)}
+                  ${linha('Quando', c.quando)}
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>`
+}
+
+function montarTexto(input: HandoffInput): string {
+  const c = camposDoLead(input)
+  return [
+    'Novo lead',
+    '',
+    `Nome: ${c.nome}`,
+    `Contato: ${c.contato}`,
+    `O que quer: ${c.intencao}`,
+    `Resumo: ${c.resumo}`,
+    `Quando: ${c.quando}`,
+  ].join('\n')
 }
 
 export const resendReal: ResendAdapter = {
@@ -61,10 +125,11 @@ export const resendReal: ResendAdapter = {
     }
 
     const body = {
-      from,
+      from: `Sema <${from}>`,
       to: input.emailPrestador,
-      subject: `Novo lead — ${input.nomeNegocio}`,
+      subject: `Novo Lead - Sema ${formatarDiaMes(input.quando)}`,
       html: montarHtml(input),
+      text: montarTexto(input),
     }
 
     const res = await fetch('https://api.resend.com/emails', {

@@ -42,7 +42,7 @@ export default function NotFound() {
             margin: '0 0 12px',
           }}
         >
-          Pergunte ao seu Contador
+          Sema
         </p>
         <h1
           style={{

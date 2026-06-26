@@ -84,7 +84,7 @@ Quando a conversa chega no ponto de encaminhar (cliente quer avaliação do caso
 
 Quando marcar suggestBook=true, preencha TAMBÉM os campos do card de handoff que o prestador vai receber:
 - leadNome: nome do contato, se ele tiver dito durante a conversa; caso ainda não saiba, null.
-- leadIntencao: em UMA linha, o que a pessoa quer (ex.: "quer marcar diagnóstico contábil", "quer entender preço do plano mensal").
+- leadIntencao: em UMA linha, o que a pessoa quer (ex.: "quer marcar diagnóstico", "quer entender preço do plano mensal").
 - leadResumo: 2 a 3 linhas com o contexto útil pro prestador agir (situação da pessoa, o que já foi dito, o que ela tá perguntando). Sem floreio, direto.
 Quando suggestBook=false, os três vão null.
 

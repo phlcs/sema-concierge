@@ -25,6 +25,9 @@ const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
 const INSTRUCAO_CONTINUACAO =
   '\n\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n'
 
+const INSTRUCAO_ORIGEM_ANUNCIO =
+  '\n\n# ORIGEM: ANÚNCIO\nEsta conversa começou por um anúncio. O cliente já recebeu uma mensagem de abertura automática que se apresentou e o convidou a responder. NÃO se apresente de novo, não dê boas-vindas nem repita quem você é. Responda direto ao que ele disse e siga a conversa de forma natural, qualificando como sempre.\n'
+
 function renderResposta(resposta: AiResponse): string {
   const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
   if (paragrafos.length === 0) return FALLBACK_RESPONSE.paragraphs.join('\n\n')
@@ -50,6 +53,7 @@ type MetaMessage = {
   from?: string
   type?: string
   text?: { body?: string }
+  referral?: unknown
 }
 
 type MetaChange = {
@@ -98,7 +102,12 @@ async function processar(body: MetaBody): Promise<void> {
         const deNumero = message.from
         if (!texto || !deNumero) continue
 
-        await tratarMensagem({ phoneNumberId, deNumero, texto })
+        const origemAnuncio = message.referral != null
+        if (origemAnuncio) {
+          logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
+        }
+
+        await tratarMensagem({ phoneNumberId, deNumero, texto, origemAnuncio })
       }
     }
   }
@@ -108,8 +117,9 @@ async function tratarMensagem(args: {
   phoneNumberId: string
   deNumero: string
   texto: string
+  origemAnuncio: boolean
 }): Promise<void> {
-  const { phoneNumberId, deNumero, texto } = args
+  const { phoneNumberId, deNumero, texto, origemAnuncio } = args
 
   const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
 
@@ -161,6 +171,7 @@ async function tratarMensagem(args: {
     const history = await carregarHistorico(conversaId)
     let systemPrompt = buildPrestadorPrompt(cliente.cerebro)
     if (!ehPrimeiraMensagem) systemPrompt += INSTRUCAO_CONTINUACAO
+    if (origemAnuncio && ehPrimeiraMensagem) systemPrompt += INSTRUCAO_ORIGEM_ANUNCIO
 
     try {
       aiResponse = await chatComplete({ systemPrompt, history, userMessage: texto })

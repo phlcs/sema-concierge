@@ -19,11 +19,11 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Pergunte ao seu Contador',
-    template: '%s | Pergunte ao seu Contador',
+    default: 'Sema',
+    template: '%s | Sema',
   },
   description:
-    'Sessão individual com um contador de verdade. Diagnóstico fiscal, orientação passo a passo e checklist personalizado. R$ 197, pagamento único, Google Meet.',
+    'Sema cria assistentes de IA no WhatsApp para prestadores de serviço.',
   robots: { index: true, follow: true },
 }
 

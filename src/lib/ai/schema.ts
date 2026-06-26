@@ -46,7 +46,7 @@ export const MAINTENANCE_RESPONSE: AiResponse = {
 
 export const BLOCKED_RESPONSE: AiResponse = {
   paragraphs: [
-    'Posso ajudar com dúvidas de Imposto de Renda e contabilidade pra pessoa física. Quer tirar alguma dúvida sobre isso?',
+    'Desculpa, não consegui entender. Pode reformular sua pergunta?',
   ],
   checklist: null,
   steps: null,

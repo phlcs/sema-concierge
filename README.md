@@ -77,27 +77,23 @@ Cria o usuário `demo@pergunteaoseucontador.com.br` / senha `demo12345`, duas co
 
 ## Configurando a IA
 
-### Provider Anthropic (padrão)
+São só duas variáveis: qual provider usar e a chave dele.
 
-1. Acesse [console.anthropic.com](https://console.anthropic.com) e crie uma API key
-2. No `.env`, preencha:
-   ```
-   AI_PROVIDER=anthropic
-   ANTHROPIC_API_KEY=sk-ant-...
-   ANTHROPIC_MODEL=claude-haiku-4-5
-   ```
+```
+AI_PROVIDER=anthropic   # anthropic | gemini | openai
+AI_API_KEY=sua-chave
+AI_MODEL=               # opcional
+```
 
-### Provider Google Gemini (alternativo)
+| Provider | Onde criar a chave | Modelo padrão (se `AI_MODEL` vazio) |
+|---|---|---|
+| `anthropic` (padrão) | [console.anthropic.com](https://console.anthropic.com) | `claude-haiku-4-5` |
+| `gemini` | [ai.google.dev](https://ai.google.dev) | `gemini-2.5-flash` |
+| `openai` | [platform.openai.com](https://platform.openai.com/api-keys) | `gpt-5.4-mini` |
 
-1. Acesse [ai.google.dev](https://ai.google.dev) e crie uma API key
-2. No `.env`, preencha:
-   ```
-   AI_PROVIDER=gemini
-   GOOGLE_API_KEY=AIza...
-   GEMINI_MODEL=gemini-2.5-flash
-   ```
+Um valor inválido em `AI_PROVIDER` gera erro nos logs (`AI_PROVIDER inválido`). Ele não cai mais na Anthropic sem aviso. As variáveis antigas (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `ANTHROPIC_MODEL`, `GEMINI_MODEL`) ainda funcionam como fallback quando `AI_API_KEY`/`AI_MODEL` estão vazias.
 
-Trocar o provider é instantâneo — apenas mude `AI_PROVIDER` e reinicie o servidor.
+Para trocar o provider, mude `AI_PROVIDER` e `AI_API_KEY` e reinicie o servidor.
 
 ### Limites de uso configuráveis
 
@@ -210,9 +206,8 @@ Configure estas variáveis em **cada environment** separadamente. Acesse **"Vari
 | Variável | Valor |
 |---|---|
 | `NODE_ENV` | `production` |
-| `AI_PROVIDER` | `anthropic` (ou `gemini`) |
-| `ANTHROPIC_MODEL` | `claude-haiku-4-5` |
-| `GEMINI_MODEL` | `gemini-2.5-flash` |
+| `AI_PROVIDER` | `anthropic`, `gemini` ou `openai` |
+| `AI_MODEL` | (opcional — vazio usa o padrão do provider) |
 | `DAILY_GLOBAL_LIMIT` | `200` |
 | `DAILY_USER_LIMIT` | `5` |
 | `MIN_SECONDS_BETWEEN_MESSAGES` | `8` |
@@ -229,8 +224,7 @@ Configure estas variáveis em **cada environment** separadamente. Acesse **"Vari
 | `DATABASE_URL` | Auto-injetada pelo plugin Postgres do Railway | Auto-injetada pelo plugin Postgres do Railway |
 | `REDIS_URL` | Auto-injetada pelo plugin Redis do Railway | Auto-injetada pelo plugin Redis do Railway |
 | `JWT_SECRET` | Gere com `openssl rand -base64 64` | Gere um valor **diferente** com `openssl rand -base64 64` |
-| `ANTHROPIC_API_KEY` | Sua chave Anthropic (pode ser a mesma) | Sua chave Anthropic |
-| `GOOGLE_API_KEY` | Sua chave Google (pode ser a mesma) | Sua chave Google |
+| `AI_API_KEY` | Chave do provider escolhido (pode ser a mesma) | Chave do provider escolhido |
 | `NEXT_PUBLIC_BASE_URL` | URL do staging (ex: `https://staging-xyz.up.railway.app`) | URL de produção (ex: `https://pergunteaoseucontador.com.br`) |
 | `RESEND_FROM_EMAIL` | `staging@pergunteaoseucontador.com.br` | `contato@pergunteaoseucontador.com.br` |
 
@@ -388,7 +382,7 @@ src/
     LandingFaq.tsx    FAQ accordion
     LogoutButton.tsx  Botão de logout
   lib/
-    ai/            LLM (Anthropic + Gemini), validação de input/output
+    ai/            LLM (Anthropic + Gemini + OpenAI), validação de input/output
     auth.ts        JWT sign/verify + helpers de cookie
     integrations/  Adapters: calcom, kiwify, resend (mock + real stub)
     logger.ts      Logger estruturado (JSON em produção)

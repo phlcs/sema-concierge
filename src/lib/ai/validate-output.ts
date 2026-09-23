@@ -8,6 +8,8 @@ const FORBIDDEN_TERMS = [
   'Claude',
   'Gemini',
   'Anthropic',
+  'OpenAI',
+  'ChatGPT',
 ]
 
 function containsForbiddenTerm(text: string): boolean {

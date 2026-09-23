@@ -6,22 +6,21 @@ type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
 let _client: Anthropic | undefined
 
-function getClient(): Anthropic {
+function getClient(apiKey: string): Anthropic {
   if (!_client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY não está configurado')
     _client = new Anthropic({ apiKey })
   }
   return _client
 }
 
 export async function callAnthropic(
+  apiKey: string,
+  model: string,
   systemPrompt: string,
   history: HistoryMessage[],
   userMessage: string
 ): Promise<AiResponse> {
-  const client = getClient()
-  const model = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'
+  const client = getClient(apiKey)
 
   const response = await client.messages.create(
     {

@@ -6,22 +6,21 @@ type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
 let _client: GoogleGenAI | undefined
 
-function getClient(): GoogleGenAI {
+function getClient(apiKey: string): GoogleGenAI {
   if (!_client) {
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) throw new Error('GOOGLE_API_KEY não está configurado')
     _client = new GoogleGenAI({ apiKey })
   }
   return _client
 }
 
 export async function callGemini(
+  apiKey: string,
+  model: string,
   systemPrompt: string,
   history: HistoryMessage[],
   userMessage: string
 ): Promise<AiResponse> {
-  const client = getClient()
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const client = getClient(apiKey)
 
   const contents = [
     ...history.map((h) => ({

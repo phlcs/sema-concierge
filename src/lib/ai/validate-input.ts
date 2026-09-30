@@ -24,7 +24,7 @@ const TRIGGER_PATTERNS: RegExp[] = [
 ]
 
 export function validateInput(message: string): InputOk | InputBlocked {
-  if (message.length < 2) {
+  if (message.length < 1) {
     return { ok: false, reason: 'too_short' }
   }
 

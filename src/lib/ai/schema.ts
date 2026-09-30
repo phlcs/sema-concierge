@@ -13,6 +13,9 @@ export const AiResponseSchema = z.object({
     .nullish(),
   suggestBook: z.boolean(),
   bookReason: z.string().nullish(),
+  leadNome: z.string().nullish(),
+  leadIntencao: z.string().nullish(),
+  leadResumo: z.string().nullish(),
 })
 
 export type AiResponse = z.infer<typeof AiResponseSchema>
@@ -23,14 +26,33 @@ export const FALLBACK_RESPONSE: AiResponse = {
   steps: null,
   suggestBook: false,
   bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
 }
 
-export const BLOCKED_RESPONSE: AiResponse = {
+export const MAINTENANCE_RESPONSE: AiResponse = {
   paragraphs: [
-    'Posso ajudar com dúvidas de Imposto de Renda e contabilidade pra pessoa física. Quer tirar alguma dúvida sobre isso?',
+    'Este atendimento está temporariamente em manutenção. Por favor, tente novamente mais tarde.',
   ],
   checklist: null,
   steps: null,
   suggestBook: false,
   bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
+}
+
+export const BLOCKED_RESPONSE: AiResponse = {
+  paragraphs: [
+    'Desculpa, não consegui entender. Pode reformular sua pergunta?',
+  ],
+  checklist: null,
+  steps: null,
+  suggestBook: false,
+  bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
 }

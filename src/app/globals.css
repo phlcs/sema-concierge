@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Design Tokens — Pergunte ao seu Contador
+   Design Tokens — Sema
    ============================================================ */
 :root {
   --blue:        #1B5FA3;
@@ -203,7 +203,7 @@ body {
 }
 
 /* ============================================================
-   Landing — "Pergunte ao seu Contador"
+   Landing — Sema
    Scoped under .landing — never collides with auth or app surfaces.
    ============================================================ */
 

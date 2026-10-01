@@ -44,6 +44,21 @@ export const MAINTENANCE_RESPONSE: AiResponse = {
   leadResumo: null,
 }
 
+// Resposta padrão quando o guardrail de saída detecta vazamento. Genérica de propósito:
+// sem nome de pessoa/negócio/ramo e sem explicar o motivo.
+export const LEAK_RESPONSE: AiResponse = {
+  paragraphs: [
+    'Posso te ajudar com informações sobre o nosso atendimento. O que você gostaria de saber?',
+  ],
+  checklist: null,
+  steps: null,
+  suggestBook: false,
+  bookReason: null,
+  leadNome: null,
+  leadIntencao: null,
+  leadResumo: null,
+}
+
 export const BLOCKED_RESPONSE: AiResponse = {
   paragraphs: [
     'Desculpa, não consegui entender. Pode reformular sua pergunta?',

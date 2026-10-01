@@ -1,0 +1,350 @@
+.sema-demo {
+  --forest: #142a15;
+  --forest-deep: #0e1f0f;
+  --moss: #32572c;
+  --leaf: #4f772e;
+  --lime: #91a955;
+  --cream: #edf29e;
+  --paper: #f4f6ec;
+  --surface: #e4e8d6;
+  --neutral-200: #e9ede0;
+  --neutral-700: #3d5a37;
+  --divider: rgba(20, 42, 21, 0.16);
+  --bubble-text: #1c261b;
+  --meta: #6b7a66;
+  --demo-heading: var(--font-fraunces), Georgia, serif;
+  --demo-body: var(--font-dm-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  height: 100dvh;
+  background: var(--paper);
+  color: var(--forest);
+  font-family: var(--demo-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.sema-demo *,
+.sema-demo *::before,
+.sema-demo *::after {
+  box-sizing: border-box;
+}
+
+.sema-demo :focus-visible {
+  outline: 3px solid var(--lime);
+}
+
+.sema-demo button {
+  font: inherit;
+}
+
+.sema-demo .screen {
+  height: 100%;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cabeçalho */
+.sema-demo .top {
+  flex: none;
+  position: relative;
+  z-index: 30;
+  background: var(--forest);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.sema-demo .top-inner {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.sema-demo .top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 6px;
+}
+.sema-demo .logo {
+  font-family: var(--demo-heading);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--cream);
+  line-height: 1;
+}
+.sema-demo .spacer {
+  flex: 1;
+}
+.sema-demo .icon-btn {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--cream);
+  background: transparent;
+  border: 1px solid rgba(237, 242, 158, 0.35);
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+}
+.sema-demo .icon-btn:hover {
+  background: rgba(237, 242, 158, 0.12);
+}
+.sema-demo .reset-btn {
+  flex: none;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--forest);
+  background: var(--cream);
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  cursor: pointer;
+}
+.sema-demo .reset-btn:hover {
+  background: #f4f8b8;
+}
+.sema-demo .reset-btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+.sema-demo .reset-btn[disabled]:hover {
+  background: var(--cream);
+}
+.sema-demo .title-block {
+  padding: 4px 16px 16px;
+}
+.sema-demo .eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #aebd90;
+  font-weight: 600;
+}
+.sema-demo .business {
+  font-family: var(--demo-heading);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  margin-top: 3px;
+  color: var(--cream);
+}
+
+/* Painel de handoffs */
+.sema-demo .panel {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(100% - 4px);
+  max-height: 560px;
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--surface);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+.sema-demo .panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.sema-demo .panel-title {
+  flex: 1;
+  font-family: var(--demo-heading);
+  font-weight: 600;
+  font-size: 18px;
+}
+.sema-demo .panel-title small {
+  font-family: var(--demo-body);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--neutral-700);
+}
+.sema-demo .close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--divider);
+  color: var(--forest);
+  cursor: pointer;
+  padding: 0;
+}
+.sema-demo .panel-empty {
+  padding: 22px 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--neutral-700);
+  text-align: center;
+}
+
+/* Área do chat */
+.sema-demo .body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.sema-demo .chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--neutral-200);
+  box-shadow:
+    0 10px 30px rgba(20, 42, 21, 0.18),
+    0 0 0 1px rgba(20, 42, 21, 0.08);
+}
+.sema-demo .chat-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 8px;
+  background: var(--moss);
+  color: var(--paper);
+}
+.sema-demo .avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--cream);
+  font-family: var(--demo-heading);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--forest);
+}
+.sema-demo .chat-id {
+  flex: 1;
+  min-width: 0;
+}
+.sema-demo .chat-name {
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sema-demo .chat-phone {
+  font-size: 12.5px;
+  color: #cfe0a8;
+  font-variant-numeric: tabular-nums;
+}
+.sema-demo .chat-status {
+  flex: none;
+  font-size: 12px;
+  color: #cfe0a8;
+}
+.sema-demo .messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sema-demo .notice {
+  align-self: center;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--moss);
+  background: #f6f8ee;
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
+  max-width: 88%;
+}
+.sema-demo .composer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #e9ede0;
+}
+.sema-demo .input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--forest);
+  caret-color: var(--leaf);
+  background: #fff;
+  border: 0;
+  border-radius: 21px;
+}
+.sema-demo .input:disabled {
+  opacity: 0.7;
+}
+.sema-demo .send {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--cream);
+  background: var(--forest);
+  border: 0;
+  cursor: pointer;
+}
+.sema-demo .send:hover {
+  background: var(--moss);
+}
+.sema-demo .send[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+.sema-demo .send[disabled]:hover {
+  background: var(--forest);
+}
+
+/* Demonstração encerrada */
+.sema-demo .ended {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  text-align: center;
+}
+.sema-demo .ended h2 {
+  font-family: var(--demo-heading);
+  font-weight: 600;
+  font-size: 24px;
+  margin: 0 0 8px;
+}
+.sema-demo .ended p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--neutral-700);
+  margin: 0;
+}
+
+body:has(.sema-demo) {
+  background: #f4f6ec;
+}

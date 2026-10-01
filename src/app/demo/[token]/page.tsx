@@ -1,10 +1,10 @@
 import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { carregarDemo } from '@/lib/demo/acesso'
-import { listarMensagensSessao } from '@/lib/demo/conversa'
+import { buscarHandoffSessao, listarMensagensSessao } from '@/lib/demo/conversa'
+import { montarCardHandoff } from '@/lib/demo/handoff'
 import { COOKIE_SESSAO, sessaoValida } from '@/lib/demo/sessao'
-import Cabecalho from './Cabecalho'
-import Chat from './Chat'
+import DemoApp from './DemoApp'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,19 +42,30 @@ export default async function DemoPage({ params }: { params: Promise<{ token: st
 
   const store = await cookies()
   const sessaoId = sessaoValida(store.get(COOKIE_SESSAO)?.value)
-  const mensagens = sessaoId ? await listarMensagensSessao(acesso.demo.id, sessaoId) : []
+  const [mensagens, salvo] = sessaoId
+    ? await Promise.all([
+        listarMensagensSessao(acesso.demo.id, sessaoId),
+        buscarHandoffSessao(acesso.demo.id, sessaoId),
+      ])
+    : [[], null]
+  const handoff = salvo
+    ? montarCardHandoff({
+        emailExibicao: acesso.demo.emailExibicao,
+        nomeNegocio,
+        leadNome: salvo.leadNome,
+        leadIntencao: salvo.leadIntencao,
+        leadResumo: salvo.leadResumo,
+        quando: salvo.createdAt,
+      })
+    : null
 
   return (
-    <div className="screen">
-      <Cabecalho nomeNegocio={nomeNegocio} />
-      <main className="body">
-        <Chat
-          token={token}
-          nomeNegocio={nomeNegocio}
-          numeroExibicao={numeroExibicao}
-          mensagensIniciais={mensagens}
-        />
-      </main>
-    </div>
+    <DemoApp
+      token={token}
+      nomeNegocio={nomeNegocio}
+      numeroExibicao={numeroExibicao}
+      mensagensIniciais={mensagens}
+      handoffInicial={handoff}
+    />
   )
 }

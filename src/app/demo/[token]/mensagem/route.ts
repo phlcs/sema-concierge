@@ -3,8 +3,10 @@ import { logger } from '@/lib/logger'
 import { getAiConfig } from '@/lib/ai/config'
 import { responderMensagem } from '@/lib/atendimento/motor'
 import { carregarDemoParaConversa } from '@/lib/demo/acesso'
+import { montarCardHandoff, type CardHandoff } from '@/lib/demo/handoff'
 import {
   LIMITE_CARACTERES,
+  buscarHandoffSessao,
   MSG_LONGA,
   MSG_TETO,
   carregarHistoricoDemo,
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const recebidaEm = new Date()
   const ehPrimeiraMensagem = (await contarMensagensSessao(demo.id, sessaoId)) === 0
 
-  const { mensagem, bloqueio } = await responderMensagem({
+  const { mensagem, aiResponse, bloqueio } = await responderMensagem({
     cerebro: demo.cerebro,
     texto,
     ehPrimeiraMensagem,
@@ -86,13 +88,40 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     texto,
     createdAt: recebidaEm,
   })
+
+  // Handoff: nenhum email é enviado. Máximo 1 por sessão; o card vai pra tela.
+  const respondidaEm = new Date(Math.max(Date.now(), recebidaEm.getTime() + 1))
+  let handoff: CardHandoff | null = null
+  const querHandoff =
+    aiResponse.suggestBook === true &&
+    !bloqueio &&
+    !(await buscarHandoffSessao(demo.id, sessaoId))
+  const lead = querHandoff
+    ? {
+        leadNome: aiResponse.leadNome ?? null,
+        leadIntencao: aiResponse.leadIntencao ?? null,
+        leadResumo: aiResponse.leadResumo ?? null,
+      }
+    : undefined
+
   await salvarMensagemDemo({
     demoId: demo.id,
     sessaoId,
     role: 'ASSISTANT',
     texto: mensagem,
-    createdAt: new Date(Math.max(Date.now(), recebidaEm.getTime() + 1)),
+    createdAt: respondidaEm,
+    handoff: lead,
   })
+
+  if (lead) {
+    handoff = montarCardHandoff({
+      emailExibicao: demo.emailExibicao,
+      nomeNegocio: demo.nomeNegocio,
+      ...lead,
+      quando: respondidaEm,
+    })
+    logger.info('demo: handoff', { demoId: demo.id, sessaoId })
+  }
 
   logger.info('demo: mensagem', {
     demoId: demo.id,
@@ -101,7 +130,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     bloqueio,
   })
 
-  const res = NextResponse.json({ texto: mensagem })
+  const res = NextResponse.json(handoff ? { texto: mensagem, handoff } : { texto: mensagem })
   res.cookies.set(COOKIE_SESSAO, sessaoId, opcoesCookieSessao(token, demo.expiraEm))
   return res
 }

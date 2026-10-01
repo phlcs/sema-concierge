@@ -6,6 +6,7 @@ export type DemoPublica = {
   id: string
   nomeNegocio: string
   numeroExibicao: string
+  emailExibicao: string
 }
 
 export type AcessoDemo =
@@ -19,7 +20,14 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
 
   const demo = await prisma.demo.findUnique({
     where: { token },
-    select: { id: true, nomeNegocio: true, numeroExibicao: true, status: true, expiraEm: true },
+    select: {
+      id: true,
+      nomeNegocio: true,
+      numeroExibicao: true,
+      emailExibicao: true,
+      status: true,
+      expiraEm: true,
+    },
   })
   if (!demo) return { estado: 'inexistente' }
 
@@ -27,6 +35,7 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
     id: demo.id,
     nomeNegocio: demo.nomeNegocio,
     numeroExibicao: demo.numeroExibicao,
+    emailExibicao: demo.emailExibicao,
   }
 
   if (demo.status !== 'ativo' || demo.expiraEm.getTime() <= agora.getTime()) {
@@ -59,6 +68,7 @@ export async function carregarDemoParaConversa(
       id: true,
       nomeNegocio: true,
       numeroExibicao: true,
+      emailExibicao: true,
       cerebro: true,
       limiteMensagens: true,
       status: true,
@@ -76,6 +86,7 @@ export async function carregarDemoParaConversa(
       id: demo.id,
       nomeNegocio: demo.nomeNegocio,
       numeroExibicao: demo.numeroExibicao,
+      emailExibicao: demo.emailExibicao,
       cerebro: demo.cerebro,
       limiteMensagens: demo.limiteMensagens,
       expiraEm: demo.expiraEm,

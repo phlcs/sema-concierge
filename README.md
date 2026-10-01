@@ -1,6 +1,6 @@
-# Pergunte ao seu Contador
+# Sema Concierge
 
-Plataforma web com assistente de IA para dúvidas de IR + agendamento de sessão paga com contador.
+Assistente de IA no WhatsApp para prestadores de serviço: atende, qualifica e encaminha o lead ao prestador.
 
 ## Stack
 
@@ -225,8 +225,8 @@ Configure estas variáveis em **cada environment** separadamente. Acesse **"Vari
 | `REDIS_URL` | Auto-injetada pelo plugin Redis do Railway | Auto-injetada pelo plugin Redis do Railway |
 | `JWT_SECRET` | Gere com `openssl rand -base64 64` | Gere um valor **diferente** com `openssl rand -base64 64` |
 | `AI_API_KEY` | Chave do provider escolhido (pode ser a mesma) | Chave do provider escolhido |
-| `NEXT_PUBLIC_BASE_URL` | URL do staging (ex: `https://staging-xyz.up.railway.app`) | URL de produção (ex: `https://pergunteaoseucontador.com.br`) |
-| `RESEND_FROM_EMAIL` | `staging@pergunteaoseucontador.com.br` | `contato@pergunteaoseucontador.com.br` |
+| `NEXT_PUBLIC_BASE_URL` | URL do staging (ex: `https://staging-xyz.up.railway.app`) | URL de produção (ex: `https://seudominio.com.br`) |
+| `RESEND_FROM_EMAIL` | `staging@seudominio.com.br` | `contato@seudominio.com.br` |
 
 > **Como gerar o JWT_SECRET:**
 > ```bash

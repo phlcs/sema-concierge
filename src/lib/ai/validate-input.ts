@@ -21,6 +21,15 @@ const TRIGGER_PATTERNS: RegExp[] = [
   /modo\s+desenvolvedor/i,
   /ignore\s+all\s+previous/i,
   /\bdisregard\b/i,
+  // Pedidos coloquiais pelo prompt/instruções. Sempre ancorados em seu/teu/suas
+  // pra não pegar "instruções de pagamento", "regras de cancelamento" etc.
+  /\b(seu|teu)\s+prompt\b/i,
+  /\b(passa|manda|envia|mostra|cola|repete|revela|diz|fala|traduz\w*|resum\w*|me\s+d[aá])\b[^.?!\n]{0,25}\b(seu|teu|suas|tuas)\s+(prompt|instru[çc][õo]es|diretrizes|regras\s+internas)/i,
+  /\b(quais|qual)\b[^.?!\n]{0,20}\b(suas|tuas|seu|teu)\s+(instru[çc][õo]es|diretrizes|prompt|regras\s+internas)/i,
+  /o\s+que\s+(te|lhe)\s+(mandaram|instru[ií]ram|programaram)/i,
+  /\b(como|quem)\s+(te|voc[êe])\s+(programou|configurou|instruiu)/i,
+  /\brep[ei]t[ae]\b[^.?!\n]{0,30}\b(acima|anterior|inicial)/i,
+  /\bfoi\s+(programad|configurad|instru[ií]d)[oa]/i,
 ]
 
 export function validateInput(message: string): InputOk | InputBlocked {

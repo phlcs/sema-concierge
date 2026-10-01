@@ -1,31 +1,51 @@
-import { AiResponseSchema, type AiResponse, FALLBACK_RESPONSE } from './schema'
+import { AiResponseSchema, type AiResponse, FALLBACK_RESPONSE, LEAK_RESPONSE } from './schema'
 import { logger } from '@/lib/logger'
 
-const FORBIDDEN_TERMS = [
-  'system prompt',
-  'instruções internas',
-  'regras internas',
-  'Claude',
-  'Gemini',
-  'Anthropic',
-  'OpenAI',
-  'ChatGPT',
+// Menções ao sistema/provedor. Com fronteira de palavra pra não dar falso positivo
+// em nome de pessoa (ex.: "Claudete" não casa com "claude").
+const FORBIDDEN_PATTERNS: RegExp[] = [
+  /system\s+prompt/i,
+  /prompt\s+do\s+sistema/i,
+  /instru[çc][õo]es\s+internas/i,
+  /regras\s+internas/i,
+  /\bclaude\b/i,
+  /\bgemini\b/i,
+  /\banthropic\b/i,
+  /\bopenai\b/i,
+  /\bchatgpt\b/i,
+  /\bgpt-?\d/i,
 ]
 
-function containsForbiddenTerm(text: string): boolean {
-  const lower = text.toLowerCase()
-  return FORBIDDEN_TERMS.some((term) => lower.includes(term.toLowerCase()))
-}
+// Trechos fixos do template de build-prestador-prompt.ts. Se o modelo despejar o prompt,
+// ao menos um deles aparece. Ao mudar títulos/campos lá, atualizar aqui.
+const LEAK_MARKERS: RegExp[] = [
+  // Títulos em MAIÚSCULAS (sem flag i): "como encaminhar" em frase normal não pode casar
+  /SEGURAN[ÇC]A\s+[—–-]\s+REGRA/,
+  /REGRA\s+ACIMA\s+DE\s+TODAS/,
+  /A\s+CERCA\s+[—–-]/,
+  /FORMATO\s+DE\s+RESPOSTA/,
+  /JSON\s+OBRIGAT[ÓO]RIO/,
+  /CONTEXTO\s+DO\s+NEG[ÓO]CIO/,
+  /COMO\s+ENCAMINHAR/,
+  /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE)\b/,
+  /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo)\b/,
+]
 
-function textLeak(response: AiResponse): boolean {
-  const allText = [
+function allText(response: AiResponse): string {
+  return [
     ...(response.paragraphs ?? []),
     ...(response.checklist ?? []),
     ...(response.steps?.map((s) => `${s.title} ${s.description}`) ?? []),
     response.bookReason ?? '',
-  ].join(' ')
+    response.leadNome ?? '',
+    response.leadIntencao ?? '',
+    response.leadResumo ?? '',
+  ].join('\n')
+}
 
-  return containsForbiddenTerm(allText)
+function textLeak(response: AiResponse): boolean {
+  const text = allText(response)
+  return FORBIDDEN_PATTERNS.some((p) => p.test(text)) || LEAK_MARKERS.some((p) => p.test(text))
 }
 
 function tryExtractJson(raw: string): unknown {
@@ -75,18 +95,13 @@ export function validateOutput(raw: string): AiResponse {
 
   // Enforce bookReason when suggestBook is true
   if (response.suggestBook && !response.bookReason) {
-    response.bookReason = 'Este caso requer análise personalizada com o Rafael.'
+    response.bookReason = 'Este caso requer atendimento personalizado.'
   }
 
-  // Detect system prompt leakage
+  // Detect system prompt leakage — resposta genérica, sem handoff nem dados de lead
   if (textLeak(response)) {
-    logger.warn('validateOutput: detected forbidden term in LLM output — replacing paragraphs')
-    return {
-      ...response,
-      paragraphs: [
-        'Sou o assistente do Rafael, especializado em IR e contabilidade pra pessoa física. Como posso te ajudar?',
-      ],
-    }
+    logger.warn('validateOutput: detected leak in LLM output — replaced by generic response')
+    return LEAK_RESPONSE
   }
 
   return response

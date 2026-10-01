@@ -46,6 +46,38 @@ model WhatsappMessage {
   @@index([conversationId])
 }
 
+// Demo do Concierge para prospects (POC). Isolada do modelo de cliente real.
+model Demo {
+  id              String         @id @default(cuid())
+  nomeNegocio     String
+  numeroExibicao  String
+  emailExibicao   String
+  cerebro         Json
+  token           String         @unique
+  expiraEm        DateTime
+  status          String         @default("ativo")
+  limiteMensagens Int            @default(300)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  mensagens       DemoMensagem[]
+}
+
+model DemoMensagem {
+  id           String      @id @default(cuid())
+  demoId       String
+  sessaoId     String
+  role         MessageRole
+  texto        String
+  handoff      Boolean     @default(false)
+  leadNome     String?
+  leadIntencao String?
+  leadResumo   String?
+  createdAt    DateTime    @default(now())
+  demo         Demo        @relation(fields: [demoId], references: [id])
+
+  @@index([demoId, sessaoId, createdAt])
+}
+
 enum MessageRole {
   USER
   ASSISTANT

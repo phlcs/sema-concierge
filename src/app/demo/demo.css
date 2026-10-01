@@ -434,3 +434,187 @@ body:has(.sema-demo) {
     animation: none;
   }
 }
+
+/* Contador do envelope */
+.sema-demo .badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--cream);
+  color: var(--forest);
+  border: 1px solid var(--forest);
+  border-radius: 10px;
+  animation: sema-demo-pulse 1.4s ease-out infinite;
+}
+
+/* Aviso de handoff */
+.sema-demo .toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(100% - 4px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--forest);
+  background: var(--cream);
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.sema-demo .toast .msg {
+  flex: 1;
+}
+.sema-demo .toast .open {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Email de handoff no painel */
+.sema-demo .mail-wrap {
+  padding: 14px;
+}
+.sema-demo .mail {
+  background: #ffffff;
+  border: 1px solid var(--surface);
+  border-top: 3px solid var(--lime);
+  padding: 18px 18px 8px;
+}
+.sema-demo .mail-brand {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+.sema-demo .mail-title {
+  font-family: var(--demo-heading);
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.1;
+  margin: 4px 0 10px;
+  color: var(--forest);
+}
+.sema-demo .mail-meta {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--neutral-700);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface);
+  word-break: break-word;
+}
+.sema-demo .row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface);
+}
+.sema-demo .row:last-child {
+  border-bottom: 0;
+}
+.sema-demo .row-label {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moss);
+  margin-bottom: 4px;
+}
+.sema-demo .row-value {
+  font-size: 15px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sema-demo .row-value.main {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Diálogo de reiniciar */
+.sema-demo .backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(14, 31, 15, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.sema-demo .dialog {
+  width: 100%;
+  max-width: 340px;
+  background: var(--paper);
+  border-radius: 18px;
+  padding: 22px 20px 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+.sema-demo .dialog-title {
+  font-family: var(--demo-heading);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--forest);
+}
+.sema-demo .dialog-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--neutral-700);
+  margin-top: 8px;
+}
+.sema-demo .dialog-erro {
+  font-size: 13px;
+  color: #8a2a2a;
+  margin-top: 10px;
+}
+.sema-demo .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.sema-demo .btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.sema-demo .btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+.sema-demo .btn-secondary {
+  background: transparent;
+  color: var(--forest);
+  border: 1px solid var(--divider);
+}
+.sema-demo .btn-primary {
+  background: var(--forest);
+  color: var(--cream);
+  border: 0;
+}
+
+@keyframes sema-demo-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(237, 242, 158, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(237, 242, 158, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sema-demo .badge {
+    animation: none;
+  }
+}

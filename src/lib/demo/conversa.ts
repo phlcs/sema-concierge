@@ -67,6 +67,29 @@ export async function salvarMensagemDemo(args: {
   role: 'USER' | 'ASSISTANT'
   texto: string
   createdAt: Date
+  handoff?: { leadNome: string | null; leadIntencao: string | null; leadResumo: string | null }
 }): Promise<void> {
-  await prisma.demoMensagem.create({ data: args })
+  const { handoff, ...dados } = args
+  await prisma.demoMensagem.create({
+    data: handoff ? { ...dados, handoff: true, ...handoff } : dados,
+  })
+}
+
+export type HandoffSalvo = {
+  leadNome: string | null
+  leadIntencao: string | null
+  leadResumo: string | null
+  createdAt: Date
+}
+
+// Máximo 1 handoff por sessão: devolve o primeiro, se houver
+export async function buscarHandoffSessao(
+  demoId: string,
+  sessaoId: string,
+): Promise<HandoffSalvo | null> {
+  return prisma.demoMensagem.findFirst({
+    where: { demoId, sessaoId, handoff: true },
+    orderBy: { createdAt: 'asc' },
+    select: { leadNome: true, leadIntencao: true, leadResumo: true, createdAt: true },
+  })
 }

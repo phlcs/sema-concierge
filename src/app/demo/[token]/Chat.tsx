@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { MensagemTela } from '@/lib/demo/conversa'
+import type { CardHandoff } from '@/lib/demo/handoff'
 import { IconeEnviar, IconeTicks, IconeVoltar } from './Icones'
 
 const LIMITE_CARACTERES = 500
@@ -21,8 +22,10 @@ export default function Chat(props: {
   nomeNegocio: string
   numeroExibicao: string
   mensagensIniciais: MensagemTela[]
+  onHandoff: (card: CardHandoff) => void
+  onEnviando: (enviando: boolean) => void
 }) {
-  const { token, nomeNegocio, numeroExibicao, mensagensIniciais } = props
+  const { token, nomeNegocio, numeroExibicao, mensagensIniciais, onHandoff, onEnviando } = props
   const [mensagens, setMensagens] = useState<MensagemTela[]>(mensagensIniciais)
   const [rascunho, setRascunho] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -43,6 +46,7 @@ export default function Chat(props: {
 
     setErro(null)
     setEnviando(true)
+    onEnviando(true)
     setRascunho('')
     const anteriores = mensagens
     setMensagens([...anteriores, { role: 'user', texto, hora: horaAgora() }])
@@ -58,15 +62,17 @@ export default function Chat(props: {
         return
       }
       if (!res.ok) throw new Error(`status ${res.status}`)
-      const data = (await res.json()) as { texto?: string }
+      const data = (await res.json()) as { texto?: string; handoff?: CardHandoff }
       if (typeof data.texto !== 'string') throw new Error('resposta sem texto')
       setMensagens((atual) => [...atual, { role: 'assistant', texto: data.texto!, hora: horaAgora() }])
+      if (data.handoff) onHandoff(data.handoff)
     } catch {
       setMensagens(anteriores)
       setRascunho(texto)
       setErro('Não foi possível enviar. Tente de novo.')
     } finally {
       setEnviando(false)
+      onEnviando(false)
       inputRef.current?.focus()
     }
   }

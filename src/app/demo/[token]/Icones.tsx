@@ -43,3 +43,12 @@ export function IconeFechar({ size = 16 }: Props) {
     </svg>
   )
 }
+
+export function IconeTicks({ size = 14 }: Props) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#4F9AD6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 6 7 17l-5-5" />
+      <path d="m22 10-7.5 7.5L13 16" />
+    </svg>
+  )
+}

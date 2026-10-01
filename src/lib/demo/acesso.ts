@@ -34,3 +34,51 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
   }
   return { estado: 'ativa', demo: publica }
 }
+
+export type DemoConversa = DemoPublica & {
+  cerebro: unknown
+  limiteMensagens: number
+  expiraEm: Date
+}
+
+export type AcessoConversa =
+  | { estado: 'inexistente' }
+  | { estado: 'encerrada' }
+  | { estado: 'ativa'; demo: DemoConversa }
+
+// Uso exclusivo no servidor: traz o cérebro para o motor. Nada daqui vai pro navegador.
+export async function carregarDemoParaConversa(
+  token: string,
+  agora: Date = new Date(),
+): Promise<AcessoConversa> {
+  if (!FORMATO_TOKEN.test(token)) return { estado: 'inexistente' }
+
+  const demo = await prisma.demo.findUnique({
+    where: { token },
+    select: {
+      id: true,
+      nomeNegocio: true,
+      numeroExibicao: true,
+      cerebro: true,
+      limiteMensagens: true,
+      status: true,
+      expiraEm: true,
+    },
+  })
+  if (!demo) return { estado: 'inexistente' }
+
+  if (demo.status !== 'ativo' || demo.expiraEm.getTime() <= agora.getTime()) {
+    return { estado: 'encerrada' }
+  }
+  return {
+    estado: 'ativa',
+    demo: {
+      id: demo.id,
+      nomeNegocio: demo.nomeNegocio,
+      numeroExibicao: demo.numeroExibicao,
+      cerebro: demo.cerebro,
+      limiteMensagens: demo.limiteMensagens,
+      expiraEm: demo.expiraEm,
+    },
+  }
+}

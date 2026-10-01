@@ -348,3 +348,89 @@
 body:has(.sema-demo) {
   background: #f4f6ec;
 }
+
+/* Mensagens */
+.sema-demo .line {
+  display: flex;
+}
+.sema-demo .line.user {
+  justify-content: flex-end;
+}
+.sema-demo .bubble {
+  max-width: 84%;
+  padding: 7px 10px 4px;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--bubble-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+.sema-demo .line.user .bubble {
+  background: #dcf5c4;
+}
+.sema-demo .time {
+  float: right;
+  margin: 7px 0 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sema-demo .clear {
+  display: block;
+  clear: both;
+}
+.sema-demo .typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+.sema-demo .typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neutral-700);
+  animation: sema-demo-dot 1.2s infinite;
+}
+.sema-demo .typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.sema-demo .typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.sema-demo .erro {
+  align-self: center;
+  text-align: center;
+  font-size: 12px;
+  color: #8a2a2a;
+  background: #fbeaea;
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+@keyframes sema-demo-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sema-demo .typing span {
+    animation: none;
+  }
+}

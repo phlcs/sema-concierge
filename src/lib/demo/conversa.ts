@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { HistoryMessage } from '@/lib/atendimento/motor'
+import { LIMITE_HISTORICO } from '@/lib/whatsapp/conversa'
 
 // Mesmo limite do validateInput do motor
 export const LIMITE_CARACTERES = 500
@@ -20,7 +21,7 @@ export function formatarHora(data: Date): string {
   return formatoHora.format(data)
 }
 
-// Mesmo formato do carregarHistorico do WhatsApp: 6 últimas, em ordem cronológica
+// Mesmo formato do carregarHistorico do WhatsApp: últimas LIMITE_HISTORICO, em ordem cronológica
 export async function carregarHistoricoDemo(
   demoId: string,
   sessaoId: string,
@@ -28,7 +29,7 @@ export async function carregarHistoricoDemo(
   const msgs = await prisma.demoMensagem.findMany({
     where: { demoId, sessaoId },
     orderBy: { createdAt: 'desc' },
-    take: 6,
+    take: LIMITE_HISTORICO,
     select: { role: true, texto: true },
   })
   return msgs.reverse().map((m) => ({

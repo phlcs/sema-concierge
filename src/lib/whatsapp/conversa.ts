@@ -23,11 +23,14 @@ export async function acharOuCriarConversa(
   return { conversaId: criada.id, ehPrimeiraMensagem: true }
 }
 
+// Teto de mensagens enviadas ao modelo como histórico
+export const LIMITE_HISTORICO = 40
+
 export async function carregarHistorico(conversationId: string): Promise<HistoryMessage[]> {
   const msgs = await prisma.whatsappMessage.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    take: 6,
+    take: LIMITE_HISTORICO,
   })
   return msgs.reverse().map((m) => ({
     role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),

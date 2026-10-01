@@ -2,15 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { enviarTexto } from '@/lib/whatsapp/send'
-import { chatComplete } from '@/lib/ai'
-import { validateInput } from '@/lib/ai/validate-input'
-import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
-import {
-  BLOCKED_RESPONSE,
-  FALLBACK_RESPONSE,
-  MAINTENANCE_RESPONSE,
-  type AiResponse,
-} from '@/lib/ai/schema'
+import { MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+import { renderResposta, responderMensagem } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
 import {
   acharOuCriarConversa,
@@ -21,18 +14,6 @@ import { resend } from '@/lib/integrations/resend'
 import { precisaRevisar } from '@/lib/qa/keywords'
 
 const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
-
-const INSTRUCAO_CONTINUACAO =
-  '\n\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n'
-
-const INSTRUCAO_ORIGEM_ANUNCIO =
-  '\n\n# ORIGEM: ANÚNCIO\nEsta conversa começou por um anúncio. O cliente já recebeu uma mensagem de abertura automática que se apresentou e o convidou a responder. NÃO se apresente de novo, não dê boas-vindas nem repita quem você é. Responda direto ao que ele disse e siga a conversa de forma natural, qualificando como sempre.\n'
-
-function renderResposta(resposta: AiResponse): string {
-  const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
-  if (paragrafos.length === 0) return FALLBACK_RESPONSE.paragraphs.join('\n\n')
-  return paragrafos.join('\n\n')
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -158,30 +139,18 @@ async function tratarMensagem(args: {
     numeroContato,
   )
 
-  const inputCheck = validateInput(texto)
-  let mensagem: string
-  let aiResponse: AiResponse = BLOCKED_RESPONSE
-  if (!inputCheck.ok) {
+  const { mensagem, aiResponse, bloqueio } = await responderMensagem({
+    cerebro: cliente.cerebro,
+    texto,
+    ehPrimeiraMensagem,
+    origemAnuncio,
+    carregarHistorico: () => carregarHistorico(conversaId),
+  })
+  if (bloqueio) {
     logger.warn('webhook: entrada bloqueada por validateInput', {
       phoneNumberId,
-      reason: inputCheck.reason,
+      reason: bloqueio,
     })
-    mensagem = renderResposta(BLOCKED_RESPONSE)
-  } else {
-    const history = await carregarHistorico(conversaId)
-    let systemPrompt = buildPrestadorPrompt(cliente.cerebro)
-    if (!ehPrimeiraMensagem) systemPrompt += INSTRUCAO_CONTINUACAO
-    if (origemAnuncio && ehPrimeiraMensagem) systemPrompt += INSTRUCAO_ORIGEM_ANUNCIO
-
-    try {
-      aiResponse = await chatComplete({ systemPrompt, history, userMessage: texto })
-    } catch (err) {
-      logger.error('webhook: chatComplete falhou', {
-        erro: err instanceof Error ? err.message : String(err),
-      })
-      aiResponse = FALLBACK_RESPONSE
-    }
-    mensagem = renderResposta(aiResponse)
   }
 
   await salvarMensagem(conversaId, 'USER', texto)

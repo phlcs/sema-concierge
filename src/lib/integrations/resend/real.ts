@@ -3,6 +3,7 @@ import type {
   HandoffInput,
   EmailResult,
 } from './types'
+import { assuntoHandoff, camposDoLead } from './handoff-campos'
 
 function escapeHtml(value: string): string {
   return value
@@ -11,44 +12,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-function formatarQuando(quando: Date): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(quando)
-}
-
-function formatarDiaMes(quando: Date): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-  }).format(quando)
-}
-
-type CamposLead = {
-  nome: string
-  contato: string
-  intencao: string
-  resumo: string
-  quando: string
-}
-
-function camposDoLead(input: HandoffInput): CamposLead {
-  const naoInformado = 'não informado'
-  return {
-    nome: input.leadNome ?? naoInformado,
-    contato: input.leadContato,
-    intencao: input.leadIntencao ?? naoInformado,
-    resumo: input.leadResumo ?? naoInformado,
-    quando: formatarQuando(input.quando),
-  }
 }
 
 function montarHtml(input: HandoffInput): string {
@@ -127,7 +90,7 @@ export const resendReal: ResendAdapter = {
     const body = {
       from: `Sema <${from}>`,
       to: input.emailPrestador,
-      subject: `Novo Lead - Sema ${formatarDiaMes(input.quando)}`,
+      subject: assuntoHandoff(input.quando),
       html: montarHtml(input),
       text: montarTexto(input),
     }

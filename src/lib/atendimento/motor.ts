@@ -1,16 +1,17 @@
 import { chatComplete } from '@/lib/ai'
 import { validateInput } from '@/lib/ai/validate-input'
-import { buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
+import { buildDadosDoMomento, buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { logger } from '@/lib/logger'
 
-export type HistoryMessage = { role: 'user' | 'assistant'; content: string }
+// createdAt só serve pro aviso de tempo; não vai pro provedor de IA
+export type HistoryMessage = { role: 'user' | 'assistant'; content: string; createdAt?: Date }
 
 const INSTRUCAO_CONTINUACAO =
-  '\n\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n'
+  '\n\n<continuacao>\n# CONTINUAÇÃO DE CONVERSA\nEsta conversa JÁ ESTÁ em andamento com este cliente. NÃO se reapresente, NÃO repita a saudação inicial e NÃO pergunte o nome de novo se já souber. Responda direto, dando continuidade ao que já foi conversado.\n</continuacao>'
 
 const INSTRUCAO_ORIGEM_ANUNCIO =
-  '\n\n# ORIGEM: ANÚNCIO\nEsta conversa começou por um anúncio. O cliente já recebeu uma mensagem de abertura automática que se apresentou e o convidou a responder. NÃO se apresente de novo, não dê boas-vindas nem repita quem você é. Responda direto ao que ele disse e siga a conversa de forma natural, qualificando como sempre.\n'
+  '\n\n<origem_anuncio>\n# ORIGEM: ANÚNCIO\nEsta conversa começou por um anúncio. O cliente já recebeu uma mensagem de abertura automática que se apresentou e o convidou a responder. NÃO se apresente de novo, não dê boas-vindas nem repita quem você é. Responda direto ao que ele disse e siga a conversa de forma natural, qualificando como sempre.\n</origem_anuncio>'
 
 export function renderResposta(resposta: AiResponse): string {
   const paragrafos = (resposta.paragraphs ?? []).map((p) => p.trim()).filter(Boolean)
@@ -48,13 +49,18 @@ export async function responderMensagem(args: {
   }
 
   const history = await carregarHistorico()
-  let systemPrompt = buildPrestadorPrompt(cerebro)
-  if (!ehPrimeiraMensagem) systemPrompt += INSTRUCAO_CONTINUACAO
-  if (origemAnuncio && ehPrimeiraMensagem) systemPrompt += INSTRUCAO_ORIGEM_ANUNCIO
+  const ultimaMensagemPessoaEm =
+    history.findLast((m) => m.role === 'user' && m.createdAt)?.createdAt ?? null
+
+  // Ordem: prompt base + cérebro (fixo, cacheável), dados do momento, continuação/anúncio, histórico
+  const systemPrompt = buildPrestadorPrompt(cerebro)
+  let systemPromptMomento = buildDadosDoMomento({ agora: new Date(), ultimaMensagemPessoaEm })
+  if (!ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_CONTINUACAO
+  if (origemAnuncio && ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_ORIGEM_ANUNCIO
 
   let aiResponse: AiResponse
   try {
-    aiResponse = await chatComplete({ systemPrompt, history, userMessage: texto })
+    aiResponse = await chatComplete({ systemPrompt, systemPromptMomento, history, userMessage: texto })
   } catch (err) {
     logger.error('webhook: chatComplete falhou', {
       erro: err instanceof Error ? err.message : String(err),

@@ -17,6 +17,7 @@ export async function callAnthropic(
   apiKey: string,
   model: string,
   systemPrompt: string,
+  systemPromptMomento: string,
   history: HistoryMessage[],
   userMessage: string
 ): Promise<AiResponse> {
@@ -27,13 +28,14 @@ export async function callAnthropic(
       model,
       max_tokens: 1200,
       temperature: 0.3,
-      // System prompt with cache_control — large stable prefix cached across requests
+      // Parte fixa com cache_control (prefixo estável entre mensagens); a do momento fica fora do cache
       system: [
         {
-          type: 'text',
+          type: 'text' as const,
           text: systemPrompt,
-          cache_control: { type: 'ephemeral' },
+          cache_control: { type: 'ephemeral' as const },
         },
+        ...(systemPromptMomento ? [{ type: 'text' as const, text: systemPromptMomento }] : []),
       ],
       messages: [
         ...history.map((h) => ({

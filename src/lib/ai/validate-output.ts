@@ -29,6 +29,8 @@ const LEAK_MARKERS: RegExp[] = [
   /COMO\s+ENCAMINHAR/,
   /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE)\b/,
   /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo)\b/,
+  // Marcadores de bloco do prompt e das instruções de continuação/anúncio do motor
+  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|continuacao|origem_anuncio)>/,
 ]
 
 function allText(response: AiResponse): string {

@@ -21,7 +21,7 @@ export const AiResponseSchema = z.object({
 export type AiResponse = z.infer<typeof AiResponseSchema>
 
 export const FALLBACK_RESPONSE: AiResponse = {
-  paragraphs: ['Tive um problema técnico ao processar sua pergunta. Tenta reformular?'],
+  paragraphs: ['Tive uma instabilidade aqui, pode mandar a mensagem de novo?'],
   checklist: null,
   steps: null,
   suggestBook: false,

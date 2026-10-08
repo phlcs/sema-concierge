@@ -17,6 +17,7 @@ export async function callGemini(
   apiKey: string,
   model: string,
   systemPrompt: string,
+  systemPromptMomento: string,
   history: HistoryMessage[],
   userMessage: string
 ): Promise<AiResponse> {
@@ -34,7 +35,7 @@ export async function callGemini(
     model,
     contents,
     config: {
-      systemInstruction: systemPrompt,
+      systemInstruction: [systemPrompt, systemPromptMomento].filter(Boolean).join('\n\n'),
       maxOutputTokens: 1200,
       temperature: 0.3,
       responseMimeType: 'application/json',

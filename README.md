@@ -78,6 +78,7 @@ Modelo em [`.env.example`](./.env.example).
 - Limite de 2min30. A duração é lida do próprio arquivo Ogg/Opus (a Meta não informa); para outros formatos vale um teto de 2,5 MB. Acima disso, o cliente recebe `FRASE_AUDIO_LONGO`. Se a transcrição falhar (sem chave, erro da OpenAI, texto vazio), recebe `FRASE_MIDIA`.
 - Número, data ou nome que venham de áudio e entrem num encaminhamento são confirmados com a pessoa antes (regra no prompt, em `<audio_e_midia>`).
 - Sem `OPENAI_API_KEY` o áudio cai sempre na frase fixa, com aviso no log.
+- A página da demo tem botão de microfone (aparece com o campo vazio). Grava no navegador (HTTPS ou localhost), envia ao `POST /demo/[token]/mensagem` como `multipart/form-data` e usa a mesma transcrição e os mesmos limites do WhatsApp. A bolha passa a mostrar a transcrição, para avaliar a qualidade. Áudio recusado (longo ou com falha) recebe a frase fixa e não é gravado.
 
 ## Rodando localmente
 

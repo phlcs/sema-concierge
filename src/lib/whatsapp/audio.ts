@@ -17,14 +17,12 @@ export type ResultadoAudio =
   | { ok: true; texto: string }
   | { ok: false; motivo: 'longo' | 'falha' }
 
+// Do arquivo ao texto: confere a duração (quando dá para ler) e transcreve. Serve ao
+// WhatsApp (depois de baixar da Meta) e à demo (áudio gravado no navegador).
 // Nunca lança: qualquer erro vira { ok: false, motivo: 'falha' }
-export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio> {
+export async function transcreverBuffer(buffer: Buffer, mime: string): Promise<ResultadoAudio> {
   try {
-    const { buffer, mime } = await baixarMidia({
-      mediaId,
-      token: process.env.WHATSAPP_TOKEN ?? '',
-      maxBytes: LIMITE_AUDIO_BYTES,
-    })
+    if (buffer.length > LIMITE_AUDIO_BYTES) throw new MidiaGrandeDemais(buffer.length)
 
     const duracao = duracaoOggOpusSegundos(buffer)
     if (duracao != null && duracao > LIMITE_AUDIO_SEGUNDOS) {
@@ -44,6 +42,26 @@ export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio
     })
     return { ok: false, motivo: 'falha' }
   }
+}
+
+// Nunca lança: qualquer erro vira { ok: false, motivo: 'falha' }
+export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio> {
+  let midia
+  try {
+    midia = await baixarMidia({
+      mediaId,
+      token: process.env.WHATSAPP_TOKEN ?? '',
+      maxBytes: LIMITE_AUDIO_BYTES,
+    })
+  } catch (err) {
+    if (err instanceof MidiaGrandeDemais) {
+      logger.info('audio: arquivo acima do limite, não transcrito', { bytes: err.bytes })
+      return { ok: false, motivo: 'longo' }
+    }
+    logger.warn('audio: falha ao baixar', { erro: err instanceof Error ? err.message : String(err) })
+    return { ok: false, motivo: 'falha' }
+  }
+  return transcreverBuffer(midia.buffer, midia.mime)
 }
 
 // A transcrição começa na chegada do áudio e corre durante a espera do turno; o

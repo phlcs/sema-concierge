@@ -30,11 +30,12 @@ export async function carregarHistoricoDemo(
     where: { demoId, sessaoId },
     orderBy: { createdAt: 'desc' },
     take: LIMITE_HISTORICO,
-    select: { role: true, texto: true },
+    select: { role: true, texto: true, createdAt: true },
   })
   return msgs.reverse().map((m) => ({
     role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
     content: m.texto,
+    createdAt: m.createdAt,
   }))
 }
 

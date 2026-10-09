@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 
-export type HistoryMessage = { role: 'user' | 'assistant'; content: string }
+export type HistoryMessage = { role: 'user' | 'assistant'; content: string; createdAt?: Date }
 
 export async function acharOuCriarConversa(
   clienteId: string,
@@ -35,6 +35,7 @@ export async function carregarHistorico(conversationId: string): Promise<History
   return msgs.reverse().map((m) => ({
     role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
     content: m.texto,
+    createdAt: m.createdAt,
   }))
 }
 

@@ -320,7 +320,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 - Rate limit no webhook: **não existe** (`checkRateLimit()` não é chamado).
 
 ### Áudio e imagem
-- Áudio, imagem, documento e vídeo entram no turno e recebem a frase fixa `FRASE_MIDIA` ao fim da espera (junto da resposta do turno, se houver texto; sozinha, sem IA e sem gravar nada, se só houver mídia). Figurinha, reação e localização são ignoradas. Nenhuma mídia é transcrita ou lida.
+- Áudio, imagem, documento e vídeo entram no turno e recebem a frase fixa `FRASE_MIDIA` ao fim da espera (junto da resposta do turno, se houver texto; sozinha, sem IA e sem gravar nada, se só houver mídia). Figurinha, reação e localização são ignoradas. Áudio de até 2min30 é transcrito (`src/lib/whatsapp/audio.ts`) e entra no turno como texto `[áudio transcrito] ...`; áudio maior recebe `FRASE_AUDIO_LONGO` e falha de transcrição recebe `FRASE_MIDIA`. Imagem, documento e vídeo não são lidos.
 - Eventos de `statuses` (entregue/lido) são ignorados.
 
 ### Humano assumir a conversa

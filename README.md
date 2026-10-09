@@ -20,7 +20,7 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 
 1. A Meta faz `POST /api/whatsapp/webhook`.
 2. O corpo cru é lido e o cabeçalho `X-Hub-Signature-256` é conferido com `APP_SECRET`. Com `APP_SECRET` definida, evento sem assinatura válida é recusado (401) e registrado no log. Sem ela, o webhook aceita tudo e registra um aviso a cada evento.
-3. O servidor responde `200` e processa em seguida. Só mensagens de texto são tratadas; áudio, imagem e demais tipos são descartados.
+3. O servidor responde `200` e processa em seguida. Texto e áudio são tratados: o áudio é baixado pelo media ID, transcrito e entra no turno como texto (ver "Áudio" abaixo). Imagem, documento e vídeo recebem uma frase fixa pedindo texto; os demais tipos são descartados.
 4. O `Cliente` é localizado pelo `phone_number_id`. Status `manutencao` responde com texto fixo; qualquer status diferente de `ativo` não responde.
 5. `normalizarNumero()` define a chave da conversa. Números do Brasil (começam com 55) recebem a regra do nono dígito; os demais são usados exatamente como a Meta enviou.
 6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens, monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
@@ -62,12 +62,22 @@ Modelo em [`.env.example`](./.env.example).
 | `AI_PROVIDER` | `anthropic` (padrão), `gemini` ou `openai` |
 | `AI_API_KEY` | Chave do provider escolhido |
 | `AI_MODEL` | Opcional; senão usa o padrão do provider |
+| `AI_AUDIO_MODEL` | Opcional; modelo de transcrição de áudio (OpenAI). Vazio = `gpt-4o-mini-transcribe` |
+| `OPENAI_API_KEY` | Chave usada na transcrição de áudio, qualquer que seja o `AI_PROVIDER` (com `AI_PROVIDER=openai`, a `AI_API_KEY` também serve) |
 | `REDIS_URL` | Redis (healthcheck) |
 | `RESEND_MODE` | `mock` (padrão, só loga) ou `real` |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de handoff no modo `real` |
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
 
 `APP_SECRET` é opcional por segurança de rollout: sem ela o webhook não verifica a assinatura (e avisa no log a cada evento). Com ela errada, o robô para de responder; para voltar, apague a variável no Railway, sem novo deploy. Troque a chave primeiro no staging.
+
+## Áudio
+
+- Todo cliente `ativo` lê áudio. O webhook baixa o arquivo na hora (a URL da Meta vale 5 minutos), transcreve com `AI_AUDIO_MODEL` e usa o texto como se tivesse sido digitado, dentro da espera de 10s do turno. A transcrição começa na chegada do áudio e corre em paralelo à espera.
+- Só o texto é guardado, sempre começando com `[áudio transcrito]` (aparece no histórico e no painel). O áudio fica só em memória e nunca é gravado.
+- Limite de 2min30. A duração é lida do próprio arquivo Ogg/Opus (a Meta não informa); para outros formatos vale um teto de 2,5 MB. Acima disso, o cliente recebe `FRASE_AUDIO_LONGO`. Se a transcrição falhar (sem chave, erro da OpenAI, texto vazio), recebe `FRASE_MIDIA`.
+- Número, data ou nome que venham de áudio e entrem num encaminhamento são confirmados com a pessoa antes (regra no prompt, em `<audio_e_midia>`).
+- Sem `OPENAI_API_KEY` o áudio cai sempre na frase fixa, com aviso no log.
 
 ## Rodando localmente
 

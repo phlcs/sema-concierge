@@ -7,8 +7,10 @@ import { logger } from '@/lib/logger'
 
 export type ItemTurno = {
   wamid: string
-  tipo: 'texto' | 'midia'
+  tipo: 'texto' | 'audio' | 'midia'
   texto?: string
+  // só em tipo 'audio': a transcrição é buscada por ele; o áudio em si não é guardado
+  mediaId?: string
   origemAnuncio: boolean
   recebidaEm: number
 }

@@ -1,5 +1,9 @@
 import { chatComplete } from '@/lib/ai'
-import { LIMITE_MENSAGEM, validateInput } from '@/lib/ai/validate-input'
+import {
+  LIMITE_MENSAGEM,
+  LIMITE_MENSAGEM_AUDIO,
+  validateInput,
+} from '@/lib/ai/validate-input'
 import { buildDadosDoMomento, buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { logger } from '@/lib/logger'
@@ -19,6 +23,10 @@ export function renderResposta(resposta: AiResponse): string {
   return paragrafos.join('\n\n')
 }
 
+// Mensagem do turno. `deAudio` marca texto transcrito (a origem vem do canal, não do
+// conteúdo): ele tem limite de tamanho maior que o texto digitado.
+export type MensagemEntrada = string | { texto: string; deAudio: true }
+
 export type ResultadoMotor = {
   mensagem: string
   aiResponse: AiResponse
@@ -32,19 +40,26 @@ export type ResultadoMotor = {
 export async function responderMensagem(args: {
   cerebro: unknown
   // Mensagens do turno, em ordem de chegada. A demo manda uma só.
-  mensagens: string[]
+  mensagens: MensagemEntrada[]
   ehPrimeiraMensagem: boolean
   origemAnuncio: boolean
   // só é chamado quando a entrada passa no filtro
   carregarHistorico: () => Promise<HistoryMessage[]>
 }): Promise<ResultadoMotor> {
   const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico } = args
-  const texto = mensagens.join('\n')
+  const itens = mensagens.map((m) => (typeof m === 'string' ? { texto: m, deAudio: false } : m))
+  const texto = itens.map((m) => m.texto).join('\n')
+  const temAudio = itens.some((m) => m.deAudio)
 
   // Tamanho vale para cada mensagem antes de juntar; as regras de manipulação
   // rodam no texto junto, para pegar frase dividida entre mensagens.
-  const longa = mensagens.some((m) => m.length > LIMITE_MENSAGEM)
-  const inputCheck = longa ? ({ ok: false, reason: 'too_long' } as const) : validateInput(texto)
+  const longa = itens.some(
+    (m) => m.texto.length > (m.deAudio ? LIMITE_MENSAGEM_AUDIO : LIMITE_MENSAGEM),
+  )
+  const limiteJunto = temAudio ? LIMITE_MENSAGEM + LIMITE_MENSAGEM_AUDIO : LIMITE_MENSAGEM
+  const inputCheck = longa
+    ? ({ ok: false, reason: 'too_long' } as const)
+    : validateInput(texto, limiteJunto)
   if (!inputCheck.ok) {
     return {
       mensagem: renderResposta(BLOCKED_RESPONSE),

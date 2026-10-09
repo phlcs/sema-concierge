@@ -324,6 +324,43 @@
   background: var(--forest);
 }
 
+/* Gravação de áudio */
+.sema-demo .composer.gravando {
+  justify-content: space-between;
+}
+.sema-demo .send.cancelar {
+  background: transparent;
+  color: var(--forest);
+}
+.sema-demo .send.cancelar:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+.sema-demo .rec-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--forest);
+  background: #fff;
+  border-radius: 21px;
+}
+.sema-demo .rec-ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d33b3b;
+  animation: rec-pulso 1.2s ease-in-out infinite;
+}
+@keyframes rec-pulso {
+  50% {
+    opacity: 0.25;
+  }
+}
+
 /* Demonstração encerrada */
 .sema-demo .ended {
   flex: 1;

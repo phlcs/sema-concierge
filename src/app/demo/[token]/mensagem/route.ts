@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const { mensagem, aiResponse, bloqueio } = await responderMensagem({
     cerebro: demo.cerebro,
-    texto,
+    mensagens: [texto],
     ehPrimeiraMensagem,
     origemAnuncio: false,
     carregarHistorico: () => carregarHistoricoDemo(demo.id, sessaoId),

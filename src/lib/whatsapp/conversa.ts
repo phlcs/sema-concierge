@@ -17,10 +17,22 @@ export async function acharOuCriarConversa(
     return { conversaId: existente.id, ehPrimeiraMensagem: count === 0 }
   }
 
-  const criada = await prisma.whatsappConversation.create({
-    data: { clienteId, numeroContato },
-  })
-  return { conversaId: criada.id, ehPrimeiraMensagem: true }
+  try {
+    const criada = await prisma.whatsappConversation.create({
+      data: { clienteId, numeroContato },
+    })
+    return { conversaId: criada.id, ehPrimeiraMensagem: true }
+  } catch (err) {
+    // Outro turno do mesmo contato criou a conversa entre o find e o create
+    if ((err as { code?: string }).code !== 'P2002') throw err
+    const criadaAgora = await prisma.whatsappConversation.findUniqueOrThrow({
+      where: { clienteId_numeroContato: { clienteId, numeroContato } },
+    })
+    const count = await prisma.whatsappMessage.count({
+      where: { conversationId: criadaAgora.id },
+    })
+    return { conversaId: criadaAgora.id, ehPrimeiraMensagem: count === 0 }
+  }
 }
 
 // Teto de mensagens enviadas ao modelo como histórico

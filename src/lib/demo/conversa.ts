@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { HistoryMessage } from '@/lib/atendimento/motor'
 import { LIMITE_HISTORICO } from '@/lib/whatsapp/conversa'
 
-// Mesmo limite do validateInput do motor
+// Limite próprio da demo (o WhatsApp usa LIMITE_MENSAGEM, por mensagem do turno)
 export const LIMITE_CARACTERES = 500
 
 export const MSG_LONGA = `Mensagem muito longa. Tente resumir em até ${LIMITE_CARACTERES} caracteres.`

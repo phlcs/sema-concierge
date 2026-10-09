@@ -5,6 +5,7 @@ import { enviarTexto } from '@/lib/whatsapp/send'
 import { MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { renderResposta, responderMensagem } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
+import { assinaturaValida } from '@/lib/whatsapp/assinatura'
 import {
   acharOuCriarConversa,
   carregarHistorico,
@@ -49,9 +50,24 @@ type MetaEntry = { changes?: MetaChange[] }
 type MetaBody = { entry?: MetaEntry[] }
 
 export async function POST(req: NextRequest) {
+  const raw = await req.text()
+
+  const segredo = process.env.APP_SECRET
+  if (!segredo) {
+    logger.error('webhook: APP_SECRET não configurada, evento recusado')
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+  const assinatura = req.headers.get('x-hub-signature-256')
+  if (!assinaturaValida(raw, assinatura, segredo)) {
+    logger.warn('webhook: assinatura inválida ou ausente, evento recusado', {
+      temAssinatura: assinatura != null,
+    })
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
   let body: MetaBody
   try {
-    body = (await req.json()) as MetaBody
+    body = JSON.parse(raw) as MetaBody
   } catch {
     return NextResponse.json({ ok: true })
   }

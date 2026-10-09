@@ -1,5 +1,5 @@
 import { chatComplete } from '@/lib/ai'
-import { validateInput } from '@/lib/ai/validate-input'
+import { LIMITE_MENSAGEM, validateInput } from '@/lib/ai/validate-input'
 import { buildDadosDoMomento, buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { logger } from '@/lib/logger'
@@ -31,15 +31,20 @@ export type ResultadoMotor = {
 // Persistência, envio, QA e handoff ficam em cada porta.
 export async function responderMensagem(args: {
   cerebro: unknown
-  texto: string
+  // Mensagens do turno, em ordem de chegada. A demo manda uma só.
+  mensagens: string[]
   ehPrimeiraMensagem: boolean
   origemAnuncio: boolean
   // só é chamado quando a entrada passa no filtro
   carregarHistorico: () => Promise<HistoryMessage[]>
 }): Promise<ResultadoMotor> {
-  const { cerebro, texto, ehPrimeiraMensagem, origemAnuncio, carregarHistorico } = args
+  const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico } = args
+  const texto = mensagens.join('\n')
 
-  const inputCheck = validateInput(texto)
+  // Tamanho vale para cada mensagem antes de juntar; as regras de manipulação
+  // rodam no texto junto, para pegar frase dividida entre mensagens.
+  const longa = mensagens.some((m) => m.length > LIMITE_MENSAGEM)
+  const inputCheck = longa ? ({ ok: false, reason: 'too_long' } as const) : validateInput(texto)
   if (!inputCheck.ok) {
     return {
       mensagem: renderResposta(BLOCKED_RESPONSE),

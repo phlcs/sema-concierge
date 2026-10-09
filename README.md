@@ -19,7 +19,7 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 ## Fluxo de uma mensagem
 
 1. A Meta faz `POST /api/whatsapp/webhook`.
-2. O corpo cru é lido e o cabeçalho `X-Hub-Signature-256` é conferido com `APP_SECRET`. Sem assinatura válida, o evento é recusado (401) e registrado no log.
+2. O corpo cru é lido e o cabeçalho `X-Hub-Signature-256` é conferido com `APP_SECRET`. Com `APP_SECRET` definida, evento sem assinatura válida é recusado (401) e registrado no log. Sem ela, o webhook aceita tudo e registra um aviso a cada evento.
 3. O servidor responde `200` e processa em seguida. Só mensagens de texto são tratadas; áudio, imagem e demais tipos são descartados.
 4. O `Cliente` é localizado pelo `phone_number_id`. Status `manutencao` responde com texto fixo; qualquer status diferente de `ativo` não responde.
 5. `normalizarNumero()` define a chave da conversa. Números do Brasil (começam com 55) recebem a regra do nono dígito; os demais são usados exatamente como a Meta enviou.
@@ -67,7 +67,7 @@ Modelo em [`.env.example`](./.env.example).
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de handoff no modo `real` |
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
 
-`APP_SECRET` é obrigatória: sem ela, ou com valor errado, o webhook recusa todos os eventos e o robô para de responder. Ao trocar a chave, teste primeiro no staging.
+`APP_SECRET` é opcional por segurança de rollout: sem ela o webhook não verifica a assinatura (e avisa no log a cada evento). Com ela errada, o robô para de responder; para voltar, apague a variável no Railway, sem novo deploy. Troque a chave primeiro no staging.
 
 ## Rodando localmente
 

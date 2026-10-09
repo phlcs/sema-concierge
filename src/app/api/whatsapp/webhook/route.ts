@@ -52,17 +52,19 @@ type MetaBody = { entry?: MetaEntry[] }
 export async function POST(req: NextRequest) {
   const raw = await req.text()
 
+  // Sem APP_SECRET o webhook segue como antes (sem verificar) e avisa no log a
+  // cada evento. Com ela, evento sem assinatura válida é recusado.
   const segredo = process.env.APP_SECRET
   if (!segredo) {
-    logger.error('webhook: APP_SECRET não configurada, evento recusado')
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-  const assinatura = req.headers.get('x-hub-signature-256')
-  if (!assinaturaValida(raw, assinatura, segredo)) {
-    logger.warn('webhook: assinatura inválida ou ausente, evento recusado', {
-      temAssinatura: assinatura != null,
-    })
-    return new NextResponse('Unauthorized', { status: 401 })
+    logger.warn('webhook: APP_SECRET não configurada, assinatura não verificada')
+  } else {
+    const assinatura = req.headers.get('x-hub-signature-256')
+    if (!assinaturaValida(raw, assinatura, segredo)) {
+      logger.warn('webhook: assinatura inválida ou ausente, evento recusado', {
+        temAssinatura: assinatura != null,
+      })
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
   }
 
   let body: MetaBody

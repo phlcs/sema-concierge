@@ -179,6 +179,10 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
   await tratarTurno({ phoneNumberId, deNumero, itens: [item] })
 }
 
+function marcadorBloqueio(motivo: string): string {
+  return motivo === 'too_long' ? '[mensagem bloqueada: muito longa]' : '[mensagem bloqueada]'
+}
+
 async function tratarTurno(args: {
   phoneNumberId: string
   deNumero: string
@@ -250,14 +254,18 @@ async function tratarTurno(args: {
   })
   const { aiResponse, bloqueio } = resultado
   if (bloqueio) {
+    // Só um trecho vai pro log (pra auditar o que é bloqueado); o texto não é gravado
     logger.warn('webhook: entrada bloqueada por validateInput', {
       phoneNumberId,
       reason: bloqueio,
+      tamanho: texto.length,
+      trecho: texto.slice(0, 300),
     })
   }
   const mensagem = temMidia ? `${resultado.mensagem}\n\n${FRASE_MIDIA}` : resultado.mensagem
 
-  await salvarMensagem(conversaId, 'USER', texto)
+  // Texto bloqueado não vai pro histórico: voltaria ao modelo sem passar pelo filtro
+  await salvarMensagem(conversaId, 'USER', bloqueio ? marcadorBloqueio(bloqueio) : texto)
   await salvarMensagem(conversaId, 'ASSISTANT', mensagem)
 
   await enviarTexto({

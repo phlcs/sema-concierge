@@ -6,7 +6,12 @@ import { FRASE_MIDIA, MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/sch
 import { renderResposta, responderMensagem } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
 import { assinaturaValida } from '@/lib/whatsapp/assinatura'
-import { adicionarAoTurno, registrarSeNova, type ItemTurno } from '@/lib/whatsapp/turno'
+import {
+  adicionarAoTurno,
+  avisarModoDegradado,
+  registrarSeNova,
+  type ItemTurno,
+} from '@/lib/whatsapp/turno'
 import {
   acharOuCriarConversa,
   carregarHistorico,
@@ -133,36 +138,45 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
     recebidaEm: Date.now(),
   }
 
+  // Redis fora do ar: sem dedupe; a mensagem segue e é respondida na hora
+  let degradado = false
   try {
     if (!(await registrarSeNova(wamid))) {
       logger.info('webhook: mensagem duplicada descartada', { phoneNumberId, wamid })
       return
     }
-
-    const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
-    if (!cliente) {
-      logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
-      return
-    }
-    if (cliente.status !== 'ativo' && cliente.status !== 'manutencao') {
-      logger.warn('cliente inativo', { phoneNumberId })
-      return
-    }
-
-    void marcarComoLidaEDigitando({
-      token: process.env.WHATSAPP_TOKEN ?? '',
-      phoneNumberId,
-      wamid,
-    })
-
-    await adicionarAoTurno({ phoneNumberId, deNumero, item, tratar: tratarTurno })
   } catch (err) {
-    // Redis fora do ar: melhor responder já, como turno de uma mensagem, do que ficar em silêncio
-    logger.error('webhook: falha no buffer do turno, respondendo na hora', {
-      erro: err instanceof Error ? err.message : String(err),
-    })
-    await tratarTurno({ phoneNumberId, deNumero, itens: [item] })
+    avisarModoDegradado('recebimento', err)
+    degradado = true
   }
+
+  const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
+  if (!cliente) {
+    logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
+    return
+  }
+  if (cliente.status !== 'ativo' && cliente.status !== 'manutencao') {
+    logger.warn('cliente inativo', { phoneNumberId })
+    return
+  }
+
+  void marcarComoLidaEDigitando({
+    token: process.env.WHATSAPP_TOKEN ?? '',
+    phoneNumberId,
+    wamid,
+  })
+
+  if (!degradado) {
+    try {
+      await adicionarAoTurno({ phoneNumberId, deNumero, item, tratar: tratarTurno })
+      return
+    } catch (err) {
+      avisarModoDegradado('recebimento', err)
+    }
+  }
+
+  // Modo degradado: uma mensagem = uma resposta, sem espera nem junção
+  await tratarTurno({ phoneNumberId, deNumero, itens: [item] })
 }
 
 async function tratarTurno(args: {

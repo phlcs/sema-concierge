@@ -44,6 +44,9 @@ export const MAINTENANCE_RESPONSE: AiResponse = {
   leadResumo: null,
 }
 
+// Frase fixa para áudio, imagem, documento e vídeo (o bot só lê texto).
+export const FRASE_MIDIA = 'Poxa, ainda não consigo ler imagens e arquivos. Consegue enviar escrito?'
+
 // Resposta padrão quando o guardrail de saída detecta vazamento. Genérica de propósito:
 // sem nome de pessoa/negócio/ramo e sem explicar o motivo.
 export const LEAK_RESPONSE: AiResponse = {

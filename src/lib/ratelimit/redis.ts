@@ -11,6 +11,10 @@ export function getRedis(): Redis {
 
   _redis = new Redis(url, {
     maxRetriesPerRequest: 2,
+    // Timeout curto: o webhook não pode ficar esperando um Redis fora do ar
+    // (commandTimeout também vale para comando parado na fila offline).
+    connectTimeout: 1500,
+    commandTimeout: 1500,
     lazyConnect: false,
   })
 

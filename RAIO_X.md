@@ -309,22 +309,19 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 ## 8. Canal
 
 ### Deduplicação por ID da mensagem
-- **Não existe.** O tipo `MetaMessage` (`route.ts`) nem lê o `id` (wamid). Se a Meta reenviar o mesmo evento, ele é processado de novo: nova chamada à IA, nova resposta enviada, mensagens duplicadas no banco.
+- **Existe.** O webhook lê o `id` (wamid) e grava no Redis com chave única (`wa:dedupe:{wamid}`, `SET NX`, 7 dias). Reenvio da Meta é descartado com log `info`.
 
-### 4 mensagens seguidas em poucos segundos
-- Cada mensagem costuma chegar em um `POST` separado. Cada `POST` dispara `processar()` sem esperar, então **as 4 rodam em paralelo**:
-  - cada uma carrega o histórico **antes** de qualquer uma delas ser salva (salvar só acontece depois da resposta da IA), então nenhuma "vê" as outras;
-  - **4 chamadas à IA e 4 respostas enviadas**, na ordem em que cada chamada terminar;
-  - as mensagens são salvas na ordem de término, não na ordem de chegada;
-  - se for um contato novo, as 4 podem ter `ehPrimeiraMensagem = true` (4 apresentações) e podem tentar criar a mesma conversa ao mesmo tempo; a unique `(clienteId, numeroContato)` faz as concorrentes falharem com erro (só logado), e essas mensagens ficam sem resposta.
-- Agrupamento (debounce/buffer) de mensagens: **não existe**.
+### Várias mensagens seguidas (turno)
+- Um turno do cliente = uma resposta. Cada mensagem recebida vai para um buffer por contato no Redis (`src/lib/whatsapp/turno.ts`) e reinicia uma espera de 10s (`WHATSAPP_DEBOUNCE_MS`). Ao fim, os textos são juntos em ordem de chegada (separados por `\n`) e há **uma** chamada à IA e **uma** resposta.
+- Ao receber cada mensagem, o webhook marca como lida e mostra "digitando…" (`status: "read"` + `typing_indicator`, usando o wamid recebido). O indicador dura até 25s e não é renovado. **Conferir na primeira fatura da Meta se há cobrança** (a documentação não menciona).
+- A conversa só é criada na hora de responder, depois da espera (sem colisão da unique em rajada de contato novo).
+- Limite de tamanho: 1500 caracteres **por mensagem** (`LIMITE_MENSAGEM`), conferido antes de juntar; termos de manipulação são conferidos no texto junto. A demo mantém o limite próprio de 500.
+- Riscos aceitos: mensagem que chega enquanto a IA responde pode gerar uma segunda resposta que não vê a primeira (sem trava por conversa); reinício do servidor durante a espera ou a resposta perde o turno; sem retry no envio à Meta; toda resposta fica até 10s mais lenta.
 - Rate limit no webhook: **não existe** (`checkRateLimit()` não é chamado).
-- Se várias mensagens vierem no **mesmo** payload, são processadas em sequência (`await` no loop), cada uma com sua resposta.
 
 ### Áudio e imagem
-- **Não são tratados.** `processar()` faz `if (message.type !== 'text') continue`. Áudio, imagem, documento, figurinha, localização, botões etc. são **descartados em silêncio**: nada é salvo, nenhuma resposta é enviada.
-- A seção "ÁUDIO E MÍDIA" do prompt nunca é acionada no WhatsApp, porque o modelo nunca recebe esses eventos.
-- Eventos de `statuses` (entregue/lido) também são ignorados.
+- Áudio, imagem, documento e vídeo entram no turno e recebem a frase fixa `FRASE_MIDIA` ao fim da espera (junto da resposta do turno, se houver texto; sozinha, sem IA e sem gravar nada, se só houver mídia). Figurinha, reação e localização são ignoradas. Nenhuma mídia é transcrita ou lida.
+- Eventos de `statuses` (entregue/lido) são ignorados.
 
 ### Humano assumir a conversa
 - **Não existe** por conversa. O admin só lê conversas (`MessagesReader.tsx` tem apenas "Ver mais antigas"); não envia mensagem e não pausa o bot.

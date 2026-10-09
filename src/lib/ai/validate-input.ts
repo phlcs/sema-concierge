@@ -1,3 +1,7 @@
+// Limite por mensagem. Quando o cliente manda várias mensagens em sequência
+// (um turno), cada uma é conferida sozinha antes de juntar.
+export const LIMITE_MENSAGEM = 1500
+
 type InputOk = { ok: true }
 type InputBlocked = { ok: false; reason: string }
 
@@ -37,7 +41,7 @@ export function validateInput(message: string): InputOk | InputBlocked {
     return { ok: false, reason: 'too_short' }
   }
 
-  if (message.length > 500) {
+  if (message.length > LIMITE_MENSAGEM) {
     return { ok: false, reason: 'too_long' }
   }
 

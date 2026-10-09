@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { enviarTexto } from '@/lib/whatsapp/send'
-import { MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+import { enviarTexto, marcarComoLidaEDigitando } from '@/lib/whatsapp/send'
+import { FRASE_MIDIA, MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/schema'
 import { renderResposta, responderMensagem } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
 import { assinaturaValida } from '@/lib/whatsapp/assinatura'
+import {
+  adicionarAoTurno,
+  avisarModoDegradado,
+  registrarSeNova,
+  type ItemTurno,
+} from '@/lib/whatsapp/turno'
 import {
   acharOuCriarConversa,
   carregarHistorico,
@@ -32,6 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 type MetaMessage = {
+  id?: string
   from?: string
   type?: string
   text?: { body?: string }
@@ -96,29 +103,93 @@ async function processar(body: MetaBody): Promise<void> {
 
       const messages = value.messages ?? []
       for (const message of messages) {
-        if (message.type !== 'text') continue
-        const texto = message.text?.body
-        const deNumero = message.from
-        if (!texto || !deNumero) continue
-
-        const origemAnuncio = message.referral != null
-        if (origemAnuncio) {
-          logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
-        }
-
-        await tratarMensagem({ phoneNumberId, deNumero, texto, origemAnuncio })
+        await receberMensagem(phoneNumberId, message)
       }
     }
   }
 }
 
-async function tratarMensagem(args: {
+const TIPOS_MIDIA = new Set(['audio', 'image', 'document', 'video'])
+
+// Recebimento: dedupe, lida + "digitando…" e entrada no buffer do turno.
+// A resposta sai só quando o cliente fica 10s sem mandar nada (ver turno.ts).
+async function receberMensagem(phoneNumberId: string, message: MetaMessage): Promise<void> {
+  const tipo = message.type
+  const deNumero = message.from
+  const wamid = message.id
+  if (!tipo || !deNumero || !wamid) return
+
+  // Figurinha, reação, localização etc.: ignoradas
+  const ehTexto = tipo === 'text'
+  if (!ehTexto && !TIPOS_MIDIA.has(tipo)) return
+  const texto = message.text?.body
+  if (ehTexto && !texto) return
+
+  const origemAnuncio = message.referral != null
+  if (origemAnuncio) {
+    logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
+  }
+
+  const item: ItemTurno = {
+    wamid,
+    tipo: ehTexto ? 'texto' : 'midia',
+    texto: ehTexto ? texto : undefined,
+    origemAnuncio,
+    recebidaEm: Date.now(),
+  }
+
+  // Redis fora do ar: sem dedupe; a mensagem segue e é respondida na hora
+  let degradado = false
+  try {
+    if (!(await registrarSeNova(wamid))) {
+      logger.info('webhook: mensagem duplicada descartada', { phoneNumberId, wamid })
+      return
+    }
+  } catch (err) {
+    avisarModoDegradado('recebimento', err)
+    degradado = true
+  }
+
+  const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
+  if (!cliente) {
+    logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
+    return
+  }
+  if (cliente.status !== 'ativo' && cliente.status !== 'manutencao') {
+    logger.warn('cliente inativo', { phoneNumberId })
+    return
+  }
+
+  void marcarComoLidaEDigitando({
+    token: process.env.WHATSAPP_TOKEN ?? '',
+    phoneNumberId,
+    wamid,
+  })
+
+  if (!degradado) {
+    try {
+      await adicionarAoTurno({ phoneNumberId, deNumero, item, tratar: tratarTurno })
+      return
+    } catch (err) {
+      avisarModoDegradado('recebimento', err)
+    }
+  }
+
+  // Modo degradado: uma mensagem = uma resposta, sem espera nem junção
+  await tratarTurno({ phoneNumberId, deNumero, itens: [item] })
+}
+
+async function tratarTurno(args: {
   phoneNumberId: string
   deNumero: string
-  texto: string
-  origemAnuncio: boolean
+  itens: ItemTurno[]
 }): Promise<void> {
-  const { phoneNumberId, deNumero, texto, origemAnuncio } = args
+  const { phoneNumberId, deNumero, itens } = args
+
+  const textos = itens.flatMap((i) => (i.tipo === 'texto' && i.texto ? [i.texto] : []))
+  const temMidia = itens.some((i) => i.tipo === 'midia')
+  const origemAnuncio = itens.some((i) => i.origemAnuncio)
+  const texto = textos.join('\n')
 
   const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
 
@@ -132,7 +203,7 @@ async function tratarMensagem(args: {
     const { conversaId } = await acharOuCriarConversa(cliente.id, numeroContato)
     const mensagem = renderResposta(MAINTENANCE_RESPONSE)
 
-    await salvarMensagem(conversaId, 'USER', texto)
+    await salvarMensagem(conversaId, 'USER', texto || '[mídia]')
     await salvarMensagem(conversaId, 'ASSISTANT', mensagem)
 
     await enviarTexto({
@@ -151,25 +222,40 @@ async function tratarMensagem(args: {
     return
   }
 
+  // Só mídia: frase fixa, sem IA. Não cria conversa nem grava, para o primeiro
+  // texto que vier depois ainda ser tratado como primeira mensagem.
+  if (textos.length === 0) {
+    await enviarTexto({
+      token: process.env.WHATSAPP_TOKEN ?? '',
+      phoneNumberId: cliente.phoneNumberId,
+      para: deNumero,
+      mensagem: FRASE_MIDIA,
+    })
+    return
+  }
+
+  // A conversa só nasce aqui, depois da espera: evita colisão da chave única em rajada
   const numeroContato = normalizarNumero(deNumero)
   const { conversaId, ehPrimeiraMensagem } = await acharOuCriarConversa(
     cliente.id,
     numeroContato,
   )
 
-  const { mensagem, aiResponse, bloqueio } = await responderMensagem({
+  const resultado = await responderMensagem({
     cerebro: cliente.cerebro,
-    texto,
+    mensagens: textos,
     ehPrimeiraMensagem,
     origemAnuncio,
     carregarHistorico: () => carregarHistorico(conversaId),
   })
+  const { aiResponse, bloqueio } = resultado
   if (bloqueio) {
     logger.warn('webhook: entrada bloqueada por validateInput', {
       phoneNumberId,
       reason: bloqueio,
     })
   }
+  const mensagem = temMidia ? `${resultado.mensagem}\n\n${FRASE_MIDIA}` : resultado.mensagem
 
   await salvarMensagem(conversaId, 'USER', texto)
   await salvarMensagem(conversaId, 'ASSISTANT', mensagem)

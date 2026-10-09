@@ -2,6 +2,9 @@
 // (um turno), cada uma é conferida sozinha antes de juntar.
 export const LIMITE_MENSAGEM = 1500
 
+// Limite para texto transcrito de áudio: 2min30 de fala passa de 1500 caracteres
+export const LIMITE_MENSAGEM_AUDIO = 4000
+
 type InputOk = { ok: true }
 type InputBlocked = { ok: false; reason: string }
 
@@ -36,12 +39,15 @@ const TRIGGER_PATTERNS: RegExp[] = [
   /\bfoi\s+(programad|configurad|instru[ií]d)[oa]/i,
 ]
 
-export function validateInput(message: string): InputOk | InputBlocked {
+export function validateInput(
+  message: string,
+  limite: number = LIMITE_MENSAGEM,
+): InputOk | InputBlocked {
   if (message.length < 1) {
     return { ok: false, reason: 'too_short' }
   }
 
-  if (message.length > LIMITE_MENSAGEM) {
+  if (message.length > limite) {
     return { ok: false, reason: 'too_long' }
   }
 

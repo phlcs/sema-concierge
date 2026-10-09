@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { enviarTexto, marcarComoLidaEDigitando } from '@/lib/whatsapp/send'
-import { FRASE_MIDIA, MAINTENANCE_RESPONSE, type AiResponse } from '@/lib/ai/schema'
-import { renderResposta, responderMensagem } from '@/lib/atendimento/motor'
+import {
+  FRASE_AUDIO_LONGO,
+  FRASE_MIDIA,
+  MAINTENANCE_RESPONSE,
+  type AiResponse,
+} from '@/lib/ai/schema'
+import { renderResposta, responderMensagem, type MensagemEntrada } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
 import { assinaturaValida } from '@/lib/whatsapp/assinatura'
+import { aguardarTranscricao, iniciarTranscricao } from '@/lib/whatsapp/audio'
 import {
   adicionarAoTurno,
   avisarModoDegradado,
@@ -42,6 +48,7 @@ type MetaMessage = {
   from?: string
   type?: string
   text?: { body?: string }
+  audio?: { id?: string }
   referral?: unknown
 }
 
@@ -130,10 +137,13 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
     logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
   }
 
+  // Áudio com media ID vira transcrição; sem ele, ou outra mídia, segue a frase fixa
+  const mediaIdAudio = tipo === 'audio' ? message.audio?.id : undefined
   const item: ItemTurno = {
     wamid,
-    tipo: ehTexto ? 'texto' : 'midia',
+    tipo: ehTexto ? 'texto' : mediaIdAudio ? 'audio' : 'midia',
     texto: ehTexto ? texto : undefined,
+    mediaId: mediaIdAudio,
     origemAnuncio,
     recebidaEm: Date.now(),
   }
@@ -166,6 +176,12 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
     wamid,
   })
 
+  // A transcrição começa já e corre durante a espera do turno. Só para cliente ativo:
+  // em manutenção não há IA, então não se gasta transcrição.
+  if (item.tipo === 'audio' && item.mediaId && cliente.status === 'ativo') {
+    iniciarTranscricao(wamid, item.mediaId)
+  }
+
   if (!degradado) {
     try {
       await adicionarAoTurno({ phoneNumberId, deNumero, item, tratar: tratarTurno })
@@ -190,10 +206,7 @@ async function tratarTurno(args: {
 }): Promise<void> {
   const { phoneNumberId, deNumero, itens } = args
 
-  const textos = itens.flatMap((i) => (i.tipo === 'texto' && i.texto ? [i.texto] : []))
-  const temMidia = itens.some((i) => i.tipo === 'midia')
   const origemAnuncio = itens.some((i) => i.origemAnuncio)
-  const texto = textos.join('\n')
 
   const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
 
@@ -207,7 +220,8 @@ async function tratarTurno(args: {
     const { conversaId } = await acharOuCriarConversa(cliente.id, numeroContato)
     const mensagem = renderResposta(MAINTENANCE_RESPONSE)
 
-    await salvarMensagem(conversaId, 'USER', texto || '[mídia]')
+    const digitado = itens.flatMap((i) => (i.tipo === 'texto' && i.texto ? [i.texto] : []))
+    await salvarMensagem(conversaId, 'USER', digitado.join('\n') || '[mídia]')
     await salvarMensagem(conversaId, 'ASSISTANT', mensagem)
 
     await enviarTexto({
@@ -226,14 +240,31 @@ async function tratarTurno(args: {
     return
   }
 
-  // Só mídia: frase fixa, sem IA. Não cria conversa nem grava, para o primeiro
-  // texto que vier depois ainda ser tratado como primeira mensagem.
-  if (textos.length === 0) {
+  // Texto digitado e áudio transcrito entram igual, na ordem de chegada. As
+  // transcrições já correm desde a chegada do áudio; aqui só se espera o resultado.
+  const entradas = await Promise.all(
+    itens.map(async (i): Promise<{ msg?: MensagemEntrada; frase?: string }> => {
+      if (i.tipo === 'texto') return i.texto ? { msg: i.texto } : {}
+      if (i.tipo === 'midia') return { frase: FRASE_MIDIA }
+      const r = await aguardarTranscricao(i.wamid, i.mediaId ?? '')
+      if (r.ok) return { msg: { texto: r.texto, deAudio: true } }
+      return { frase: r.motivo === 'longo' ? FRASE_AUDIO_LONGO : FRASE_MIDIA }
+    }),
+  )
+  const mensagens = entradas.flatMap((e) => (e.msg ? [e.msg] : []))
+  const frases = [...new Set(entradas.flatMap((e) => (e.frase ? [e.frase] : [])))].join('\n\n')
+  const textos = mensagens.map((m) => (typeof m === 'string' ? m : m.texto))
+  const texto = textos.join('\n')
+
+  // Só mídia (ou áudio sem texto aproveitável): frase fixa, sem IA. Não cria
+  // conversa nem grava, para o primeiro texto que vier depois ainda ser tratado
+  // como primeira mensagem.
+  if (mensagens.length === 0) {
     await enviarTexto({
       token: process.env.WHATSAPP_TOKEN ?? '',
       phoneNumberId: cliente.phoneNumberId,
       para: deNumero,
-      mensagem: FRASE_MIDIA,
+      mensagem: frases || FRASE_MIDIA,
     })
     return
   }
@@ -247,7 +278,7 @@ async function tratarTurno(args: {
 
   const resultado = await responderMensagem({
     cerebro: cliente.cerebro,
-    mensagens: textos,
+    mensagens,
     ehPrimeiraMensagem,
     origemAnuncio,
     carregarHistorico: () => carregarHistorico(conversaId),
@@ -262,7 +293,7 @@ async function tratarTurno(args: {
       trecho: texto.slice(0, 300),
     })
   }
-  const mensagem = temMidia ? `${resultado.mensagem}\n\n${FRASE_MIDIA}` : resultado.mensagem
+  const mensagem = frases ? `${resultado.mensagem}\n\n${frases}` : resultado.mensagem
 
   // Texto bloqueado não vai pro histórico: voltaria ao modelo sem passar pelo filtro
   await salvarMensagem(conversaId, 'USER', bloqueio ? marcadorBloqueio(bloqueio) : texto)

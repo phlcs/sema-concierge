@@ -324,6 +324,110 @@
   background: var(--forest);
 }
 
+/* Gravação de áudio */
+.sema-demo .composer.gravando {
+  justify-content: space-between;
+}
+.sema-demo .send.cancelar {
+  background: transparent;
+  color: var(--forest);
+}
+.sema-demo .send.cancelar:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+.sema-demo .rec-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--forest);
+  background: #fff;
+  border-radius: 21px;
+}
+.sema-demo .rec-ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d33b3b;
+  animation: rec-pulso 1.2s ease-in-out infinite;
+}
+@keyframes rec-pulso {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Bolha de áudio */
+.sema-demo .audio-bolha {
+  min-width: 210px;
+}
+.sema-demo .audio-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sema-demo .audio-play {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--cream);
+  background: var(--leaf);
+  border: 0;
+  cursor: pointer;
+}
+.sema-demo .audio-play[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+.sema-demo .audio-barras {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+.sema-demo .audio-barras span {
+  flex: 1;
+  min-width: 2px;
+  max-width: 4px;
+  border-radius: 2px;
+  background: rgba(20, 42, 21, 0.28);
+}
+.sema-demo .audio-barras span.feita {
+  background: var(--moss);
+}
+.sema-demo .audio-tempo {
+  flex: none;
+  min-width: 32px;
+  font-size: 11px;
+  color: var(--meta);
+  font-variant-numeric: tabular-nums;
+}
+.sema-demo .audio-transcricao {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(20, 42, 21, 0.12);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--neutral-700);
+}
+.sema-demo .audio-transcricao span {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--meta);
+}
+
 /* Demonstração encerrada */
 .sema-demo .ended {
   flex: 1;

@@ -44,8 +44,12 @@ export const MAINTENANCE_RESPONSE: AiResponse = {
   leadResumo: null,
 }
 
-// Frase fixa para áudio, imagem, documento e vídeo (o bot só lê texto).
+// Frase fixa para imagem, documento e vídeo, e para áudio que não deu para transcrever.
 export const FRASE_MIDIA = 'Poxa, ainda não consigo ler imagens e arquivos. Consegue enviar escrito?'
+
+// Frase fixa para áudio acima de 2min30.
+export const FRASE_AUDIO_LONGO =
+  'Esse áudio ficou longo pra eu ouvir. Consegue mandar um áudio menor, de até 2 minutos e meio, ou escrever?'
 
 // Resposta padrão quando o guardrail de saída detecta vazamento. Genérica de propósito:
 // sem nome de pessoa/negócio/ramo e sem explicar o motivo.

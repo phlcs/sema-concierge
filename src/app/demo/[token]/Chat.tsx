@@ -1,11 +1,40 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import type { MensagemTela } from '@/lib/demo/conversa'
 import type { CardHandoff } from '@/lib/demo/handoff'
-import { IconeEnviar, IconeTicks, IconeVoltar } from './Icones'
+import AudioBolha from './AudioBolha'
+import { IconeEnviar, IconeLixeira, IconeMicrofone, IconeTicks, IconeVoltar } from './Icones'
 
 const LIMITE_CARACTERES = 500
+// Mesmo limite do WhatsApp: acima de 2min30 o servidor recusa
+const LIMITE_GRAVACAO_S = 150
+const TIPOS_GRAVACAO = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']
+
+// Mesmo marcador gravado pelo servidor (PREFIXO_AUDIO em lib/whatsapp/audio.ts, que não
+// dá para importar aqui). Ao recarregar a página, o histórico volta como bolha de áudio.
+const PREFIXO_AUDIO = '[áudio transcrito] '
+const TXT_SEM_TRANSCRICAO = 'Não foi possível transcrever este áudio.'
+
+// `audio` marca a bolha como áudio. `texto` é a transcrição ('' enquanto transcreve).
+// `url` é a gravação no navegador (null depois de recarregar: o áudio nunca é guardado).
+type MensagemChat = MensagemTela & { audio?: { url: string | null; seg: number | null } }
+
+function doHistorico(m: MensagemTela): MensagemChat {
+  if (m.role === 'user' && m.texto.startsWith(PREFIXO_AUDIO)) {
+    return { ...m, texto: m.texto.slice(PREFIXO_AUDIO.length), audio: { url: null, seg: null } }
+  }
+  return m
+}
+
+const semAssinatura = () => () => {}
+// MediaRecorder e microfone: só no navegador, e só em HTTPS (ou localhost)
+const temSuporteAudio = () =>
+  typeof MediaRecorder !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function'
+
+function formatarSegundos(s: number): string {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 const formatoHora = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -26,12 +55,39 @@ export default function Chat(props: {
   onEnviando: (enviando: boolean) => void
 }) {
   const { token, nomeNegocio, numeroExibicao, mensagensIniciais, onHandoff, onEnviando } = props
-  const [mensagens, setMensagens] = useState<MensagemTela[]>(mensagensIniciais)
+  const [mensagens, setMensagens] = useState<MensagemChat[]>(() => mensagensIniciais.map(doHistorico))
   const [rascunho, setRascunho] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const fimRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const suportaAudio = useSyncExternalStore(semAssinatura, temSuporteAudio, () => false)
+  const [gravando, setGravando] = useState(false)
+  const [segundos, setSegundos] = useState(0)
+  const gravadorRef = useRef<MediaRecorder | null>(null)
+  const descartarRef = useRef(false)
+  const inicioGravacaoRef = useRef(0)
+  const urlsRef = useRef(new Set<string>())
+
+  // Sai da página: solta o microfone (sem enviar) e as gravações guardadas para tocar
+  useEffect(() => {
+    const urls = urlsRef.current
+    return () => {
+      descartarRef.current = true
+      if (gravadorRef.current?.state === 'recording') gravadorRef.current.stop()
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!gravando) return
+    const t = setInterval(() => setSegundos((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [gravando])
+
+  useEffect(() => {
+    if (gravando && segundos >= LIMITE_GRAVACAO_S) pararGravacao(true)
+  }, [segundos, gravando])
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ block: 'end' })
@@ -39,42 +95,117 @@ export default function Chat(props: {
 
   const inicial = nomeNegocio.trim().charAt(0).toUpperCase() || 'S'
 
-  async function enviar(e: FormEvent) {
-    e.preventDefault()
-    const texto = rascunho.trim()
-    if (!texto || enviando) return
+  // Envio comum a texto e áudio. `nova` é a mensagem otimista da pessoa; em caso de
+  // falha a conversa volta ao que era e `restaurar` devolve o que ela tinha preparado.
+  async function postar(args: {
+    nova: MensagemChat
+    init: RequestInit
+    restaurar?: () => void
+  }) {
+    const { nova, init, restaurar } = args
+    const ehAudio = nova.audio != null
 
     setErro(null)
     setEnviando(true)
     onEnviando(true)
-    setRascunho('')
     const anteriores = mensagens
-    setMensagens([...anteriores, { role: 'user', texto, hora: horaAgora() }])
+    setMensagens([...anteriores, nova])
 
     try {
-      const res = await fetch(`/demo/${token}/mensagem`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto }),
-      })
+      const res = await fetch(`/demo/${token}/mensagem`, { method: 'POST', ...init })
       if (res.status === 404 || res.status === 410) {
         window.location.reload()
         return
       }
       if (!res.ok) throw new Error(`status ${res.status}`)
-      const data = (await res.json()) as { texto?: string; handoff?: CardHandoff }
+      const data = (await res.json()) as {
+        texto?: string
+        transcricao?: string
+        handoff?: CardHandoff
+      }
       if (typeof data.texto !== 'string') throw new Error('resposta sem texto')
-      setMensagens((atual) => [...atual, { role: 'assistant', texto: data.texto!, hora: horaAgora() }])
+      const resposta = { role: 'assistant' as const, texto: data.texto, hora: horaAgora() }
+      setMensagens((atual) => {
+        if (!ehAudio) return [...atual, resposta]
+        // A bolha do áudio mostra o que foi entendido, para avaliar a transcrição
+        const texto = data.transcricao?.startsWith(PREFIXO_AUDIO)
+          ? data.transcricao.slice(PREFIXO_AUDIO.length)
+          : TXT_SEM_TRANSCRICAO
+        return [...atual.map((m, i) => (i === anteriores.length ? { ...m, texto } : m)), resposta]
+      })
       if (data.handoff) onHandoff(data.handoff)
     } catch {
       setMensagens(anteriores)
-      setRascunho(texto)
+      if (nova.audio?.url) {
+        URL.revokeObjectURL(nova.audio.url)
+        urlsRef.current.delete(nova.audio.url)
+      }
+      restaurar?.()
       setErro('Não foi possível enviar. Tente de novo.')
     } finally {
       setEnviando(false)
       onEnviando(false)
       inputRef.current?.focus()
     }
+  }
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    const texto = rascunho.trim()
+    if (!texto || enviando) return
+    setRascunho('')
+    await postar({
+      nova: { role: 'user', texto, hora: horaAgora() },
+      init: {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto }),
+      },
+      restaurar: () => setRascunho(texto),
+    })
+  }
+
+  async function iniciarGravacao() {
+    if (enviando || gravando) return
+    setErro(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = TIPOS_GRAVACAO.find((t) => MediaRecorder.isTypeSupported(t))
+      const gravador = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      const pedacos: Blob[] = []
+      descartarRef.current = false
+
+      gravador.ondataavailable = (ev) => {
+        if (ev.data.size > 0) pedacos.push(ev.data)
+      }
+      gravador.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop())
+        setGravando(false)
+        if (descartarRef.current || pedacos.length === 0) return
+        const blob = new Blob(pedacos, { type: gravador.mimeType || mimeType || 'audio/webm' })
+        const form = new FormData()
+        form.append('audio', blob, 'audio')
+        const url = URL.createObjectURL(blob)
+        urlsRef.current.add(url)
+        const seg = Math.max(1, Math.round((Date.now() - inicioGravacaoRef.current) / 1000))
+        void postar({
+          nova: { role: 'user', texto: '', hora: horaAgora(), audio: { url, seg } },
+          init: { body: form },
+        })
+      }
+
+      gravadorRef.current = gravador
+      setSegundos(0)
+      inicioGravacaoRef.current = Date.now()
+      gravador.start()
+      setGravando(true)
+    } catch {
+      setErro('Não foi possível usar o microfone. Libere a permissão no navegador e tente de novo.')
+    }
+  }
+
+  function pararGravacao(enviarAudio: boolean) {
+    descartarRef.current = !enviarAudio
+    if (gravadorRef.current?.state === 'recording') gravadorRef.current.stop()
   }
 
   return (
@@ -99,7 +230,11 @@ export default function Chat(props: {
         {mensagens.map((m, i) => (
           <div key={i} className={m.role === 'user' ? 'line user' : 'line'}>
             <div className="bubble">
-              {m.texto}
+              {m.audio ? (
+                <AudioBolha url={m.audio.url} seg={m.audio.seg} transcricao={m.texto} />
+              ) : (
+                m.texto
+              )}
               <span className="time">
                 {m.hora}
                 {m.role === 'user' && <IconeTicks />}
@@ -121,28 +256,65 @@ export default function Chat(props: {
         <div ref={fimRef} />
       </div>
 
-      <form className="composer" onSubmit={enviar}>
-        <input
-          ref={inputRef}
-          className="input"
-          type="text"
-          placeholder="Mensagem"
-          aria-label="Mensagem"
-          maxLength={LIMITE_CARACTERES}
-          value={rascunho}
-          onChange={(e) => setRascunho(e.target.value)}
-          disabled={enviando}
-          autoComplete="off"
-        />
-        <button
-          type="submit"
-          className="send"
-          aria-label="Enviar"
-          disabled={enviando || !rascunho.trim()}
-        >
-          <IconeEnviar />
-        </button>
-      </form>
+      {gravando ? (
+        <div className="composer gravando">
+          <button
+            type="button"
+            className="send cancelar"
+            aria-label="Cancelar gravação"
+            onClick={() => pararGravacao(false)}
+          >
+            <IconeLixeira />
+          </button>
+          <div className="rec-info" aria-live="off">
+            <span className="rec-ponto" aria-hidden="true" />
+            {formatarSegundos(segundos)}
+          </div>
+          <button
+            type="button"
+            className="send"
+            aria-label="Enviar áudio"
+            onClick={() => pararGravacao(true)}
+          >
+            <IconeEnviar />
+          </button>
+        </div>
+      ) : (
+        <form className="composer" onSubmit={enviar}>
+          <input
+            ref={inputRef}
+            className="input"
+            type="text"
+            placeholder="Mensagem"
+            aria-label="Mensagem"
+            maxLength={LIMITE_CARACTERES}
+            value={rascunho}
+            onChange={(e) => setRascunho(e.target.value)}
+            disabled={enviando}
+            autoComplete="off"
+          />
+          {suportaAudio && !rascunho.trim() ? (
+            <button
+              type="button"
+              className="send"
+              aria-label="Gravar áudio"
+              disabled={enviando}
+              onClick={iniciarGravacao}
+            >
+              <IconeMicrofone />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="send"
+              aria-label="Enviar"
+              disabled={enviando || !rascunho.trim()}
+            >
+              <IconeEnviar />
+            </button>
+          )}
+        </form>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 // Tabela de preços para o custo ESTIMADO de cada chamada de IA (T5). Valores em
 // dólar por milhão de tokens, conforme as páginas públicas de preço de cada
-// provedor (conferidas em 2026-10-11, camada padrão). É estimativa: não considera
+// provedor (conferidas em 2026-10-12, camada padrão). É estimativa: não considera
 // descontos de contrato, processamento em lote nem recursos extras. Para atualizar
 // um preço ou incluir um modelo, é só mexer nesta tabela.
 //
@@ -58,6 +58,24 @@ const GEMINI: Record<string, Preco> = {
 }
 
 const OPENAI: Record<string, Preco> = {
+  'gpt-6-luna': {
+    entrada: 0.1,
+    leituraCache: 0.01,
+    saida: 0.5,
+    promptLongo: {
+      acimaDeTokens: 272_000,
+      preco: { entrada: 0.2, leituraCache: 0.02, saida: 0.75 },
+    },
+  },
+  'gpt-5.6-luna': {
+    entrada: 0.2,
+    leituraCache: 0.02,
+    saida: 1.2,
+    promptLongo: {
+      acimaDeTokens: 272_000,
+      preco: { entrada: 0.4, leituraCache: 0.04, saida: 1.8 },
+    },
+  },
   'gpt-5.4-mini': { entrada: 0.75, leituraCache: 0.075, saida: 4.5 },
   'gpt-5.4': { entrada: 2.5, leituraCache: 0.25, saida: 15 },
   'gpt-5-mini': { entrada: 0.25, leituraCache: 0.025, saida: 2 },

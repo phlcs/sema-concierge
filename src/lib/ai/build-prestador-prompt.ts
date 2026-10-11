@@ -1,3 +1,8 @@
+// Identificador da versão do prompt, gravado em cada resposta (T5) para ligar um
+// comportamento ao texto que o gerou. Mudou o prompt (aqui ou em motor.ts)? Mude também
+// este valor: tarefa e mês da alteração, ex.: 'T12-2026-11'.
+export const VERSAO_PROMPT = 'T1-2026-10'
+
 type CerebroRecord = Record<string, unknown>
 
 const FUSO = 'America/Sao_Paulo'

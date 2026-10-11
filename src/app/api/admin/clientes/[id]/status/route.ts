@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isAdminAuthed } from '@/lib/admin/guard'
+import { retirarDaListaDoGeral } from '@/lib/admin/interruptor'
 
 const TOGGLABLE = ['ativo', 'manutencao'] as const
 type ToggleStatus = (typeof TOGGLABLE)[number]
@@ -54,6 +55,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     data: { status },
     select: { id: true, status: true },
   })
+
+  // O botão do cliente manda: se o interruptor geral tinha colocado este cliente em
+  // manutenção, ele sai da lista do geral e a escolha de agora vale.
+  await retirarDaListaDoGeral(id)
 
   return NextResponse.json({ ok: true, id: updated.id, status: updated.status })
 }

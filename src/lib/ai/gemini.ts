@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
-import { validateOutput } from './validate-output'
-import type { AiResponse } from './schema'
+import { validarSaida } from './validate-output'
+import type { ResultadoProvedor } from './registro'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -20,7 +20,7 @@ export async function callGemini(
   systemPromptMomento: string,
   history: HistoryMessage[],
   userMessage: string
-): Promise<AiResponse> {
+): Promise<ResultadoProvedor> {
   const client = getClient(apiKey)
 
   const contents = [
@@ -49,5 +49,16 @@ export async function callGemini(
   const response = await Promise.race([generatePromise, timeoutPromise])
   const raw = response.text ?? ''
 
-  return validateOutput(raw)
+  // O raciocínio interno do modelo ("thoughts") é cobrado como saída
+  const u = response.usageMetadata
+  const saida = (u?.candidatesTokenCount ?? 0) + (u?.thoughtsTokenCount ?? 0)
+  return {
+    saida: validarSaida(raw),
+    uso: {
+      tokensEntrada: u?.promptTokenCount ?? null,
+      tokensSaida: u ? saida : null,
+      tokensCache: u?.cachedContentTokenCount ?? null,
+      tokensCacheEscrita: null,
+    },
+  }
 }

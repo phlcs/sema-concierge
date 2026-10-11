@@ -21,6 +21,9 @@ export default async function AdminHomePage() {
           <li>
             <Link href="/admin/clientes">Clientes →</Link>
           </li>
+          <li>
+            <Link href="/admin/eventos">Eventos →</Link>
+          </li>
         </ul>
       </div>
     </>

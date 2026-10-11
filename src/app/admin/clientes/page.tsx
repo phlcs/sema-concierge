@@ -4,6 +4,8 @@ import { isAdminAuthed } from '@/lib/admin/guard'
 import { prisma } from '@/lib/prisma'
 import LogoutButton from '../LogoutButton'
 import StatusToggle from './StatusToggle'
+import InterruptorGeral from './InterruptorGeral'
+import { lerInterruptor } from '@/lib/admin/interruptor'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +30,15 @@ export default async function ClientesPage() {
     },
   })
 
+  const interruptor = await lerInterruptor()
+  const ligadoEm = interruptor.ligadoEm
+    ? new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(interruptor.ligadoEm)
+    : null
+
   return (
     <>
       <div className="topbar">
@@ -41,6 +52,12 @@ export default async function ClientesPage() {
           <Link href="/admin">← Voltar</Link>
         </p>
         <h1>Clientes</h1>
+
+        <InterruptorGeral
+          ligado={interruptor.ligado}
+          ligadoEm={ligadoEm}
+          afetados={interruptor.afetados}
+        />
 
         {clientes.length === 0 ? (
           <div className="card">

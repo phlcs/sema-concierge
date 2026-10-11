@@ -23,10 +23,21 @@ import {
   carregarHistorico,
   salvarMensagem,
 } from '@/lib/whatsapp/conversa'
-import { resend } from '@/lib/integrations/resend'
+import { resend, resendModo } from '@/lib/integrations/resend'
+import { registrarEvento, resumoErro } from '@/lib/eventos'
+import type { ContextoRegistro } from '@/lib/ai/registro'
 import { precisaRevisar } from '@/lib/qa/keywords'
 
 const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+// Evento de assinatura recusada: no máximo 1 por minuto por processo, para que uma
+// enxurrada de chamadas falsas ao webhook não encha a tabela (o log registra todas)
+const INTERVALO_EVENTO_ASSINATURA_MS = 60_000
+let ultimoEventoAssinaturaEm = 0
+
+function contextoWhatsapp(clienteId: string, conversaId?: string): ContextoRegistro {
+  return { origem: 'whatsapp', clienteId, conversaId: conversaId ?? null }
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -77,6 +88,12 @@ export async function POST(req: NextRequest) {
       logger.warn('webhook: assinatura inválida ou ausente, evento recusado', {
         temAssinatura: assinatura != null,
       })
+      if (Date.now() - ultimoEventoAssinaturaEm >= INTERVALO_EVENTO_ASSINATURA_MS) {
+        ultimoEventoAssinaturaEm = Date.now()
+        await registrarEvento('webhook_assinatura_recusada', {
+          detalhe: { temAssinatura: assinatura != null },
+        })
+      }
       return new NextResponse('Unauthorized', { status: 401 })
     }
   }
@@ -92,6 +109,7 @@ export async function POST(req: NextRequest) {
     logger.error('erro processando webhook do WhatsApp', {
       erro: err instanceof Error ? err.message : String(err),
     })
+    void registrarEvento('webhook_erro_geral', { detalhe: resumoErro(err) })
   })
 
   return NextResponse.json({ ok: true })
@@ -133,9 +151,6 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
   if (ehTexto && !texto) return
 
   const origemAnuncio = message.referral != null
-  if (origemAnuncio) {
-    logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
-  }
 
   // Áudio com media ID vira transcrição; sem ele, ou outra mídia, segue a frase fixa
   const mediaIdAudio = tipo === 'audio' ? message.audio?.id : undefined
@@ -153,6 +168,8 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
   try {
     if (!(await registrarSeNova(wamid))) {
       logger.info('webhook: mensagem duplicada descartada', { phoneNumberId, wamid })
+      // Sem o wamid: ele embute o telefone do contato
+      await registrarEvento('mensagem_duplicada', { detalhe: { phoneNumberId } })
       return
     }
   } catch (err) {
@@ -163,11 +180,32 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
   const cliente = await prisma.cliente.findUnique({ where: { phoneNumberId } })
   if (!cliente) {
     logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
+    await registrarEvento('cliente_nao_encontrado', {
+      detalhe: { phoneNumberId, motivo: 'nao_encontrado' },
+    })
     return
   }
   if (cliente.status !== 'ativo' && cliente.status !== 'manutencao') {
     logger.warn('cliente inativo', { phoneNumberId })
+    await registrarEvento('cliente_nao_encontrado', {
+      clienteId: cliente.id,
+      detalhe: { phoneNumberId, motivo: 'inativo', status: cliente.status },
+    })
     return
+  }
+
+  if (origemAnuncio) {
+    logger.info('webhook: mensagem com origem anúncio (referral)', { phoneNumberId })
+    await registrarEvento('mensagem_de_anuncio', {
+      clienteId: cliente.id,
+      detalhe: { phoneNumberId },
+    })
+  }
+  if (tipo !== 'text') {
+    await registrarEvento('midia_recebida', {
+      clienteId: cliente.id,
+      detalhe: { phoneNumberId, tipo },
+    })
   }
 
   void marcarComoLidaEDigitando({
@@ -179,7 +217,7 @@ async function receberMensagem(phoneNumberId: string, message: MetaMessage): Pro
   // A transcrição começa já e corre durante a espera do turno. Só para cliente ativo:
   // em manutenção não há IA, então não se gasta transcrição.
   if (item.tipo === 'audio' && item.mediaId && cliente.status === 'ativo') {
-    iniciarTranscricao(wamid, item.mediaId)
+    iniciarTranscricao(wamid, item.mediaId, contextoWhatsapp(cliente.id))
   }
 
   if (!degradado) {
@@ -212,6 +250,9 @@ async function tratarTurno(args: {
 
   if (!cliente) {
     logger.warn(`cliente não encontrado para phone_number_id: ${phoneNumberId}`)
+    await registrarEvento('cliente_nao_encontrado', {
+      detalhe: { phoneNumberId, motivo: 'nao_encontrado' },
+    })
     return
   }
 
@@ -229,14 +270,23 @@ async function tratarTurno(args: {
       phoneNumberId: cliente.phoneNumberId,
       para: deNumero,
       mensagem,
+      clienteId: cliente.id,
     })
 
     logger.info('cliente em manutencao, auto-reply enviado', { phoneNumberId })
+    await registrarEvento('manutencao_resposta_automatica', {
+      clienteId: cliente.id,
+      detalhe: { phoneNumberId, conversaId },
+    })
     return
   }
 
   if (cliente.status !== 'ativo') {
     logger.warn('cliente inativo', { phoneNumberId })
+    await registrarEvento('cliente_nao_encontrado', {
+      clienteId: cliente.id,
+      detalhe: { phoneNumberId, motivo: 'inativo', status: cliente.status },
+    })
     return
   }
 
@@ -246,7 +296,7 @@ async function tratarTurno(args: {
     itens.map(async (i): Promise<{ msg?: MensagemEntrada; frase?: string }> => {
       if (i.tipo === 'texto') return i.texto ? { msg: i.texto } : {}
       if (i.tipo === 'midia') return { frase: FRASE_MIDIA }
-      const r = await aguardarTranscricao(i.wamid, i.mediaId ?? '')
+      const r = await aguardarTranscricao(i.wamid, i.mediaId ?? '', contextoWhatsapp(cliente.id))
       if (r.ok) return { msg: { texto: r.texto, deAudio: true } }
       return { frase: r.motivo === 'longo' ? FRASE_AUDIO_LONGO : FRASE_MIDIA }
     }),
@@ -265,6 +315,7 @@ async function tratarTurno(args: {
       phoneNumberId: cliente.phoneNumberId,
       para: deNumero,
       mensagem: frases || FRASE_MIDIA,
+      clienteId: cliente.id,
     })
     return
   }
@@ -282,6 +333,7 @@ async function tratarTurno(args: {
     ehPrimeiraMensagem,
     origemAnuncio,
     carregarHistorico: () => carregarHistorico(conversaId),
+    contexto: contextoWhatsapp(cliente.id, conversaId),
   })
   const { aiResponse, bloqueio } = resultado
   if (bloqueio) {
@@ -304,6 +356,7 @@ async function tratarTurno(args: {
     phoneNumberId: cliente.phoneNumberId,
     para: deNumero,
     mensagem,
+    clienteId: cliente.id,
   })
 
   try {
@@ -313,10 +366,18 @@ async function tratarTurno(args: {
         data: { revisar: true },
       })
       logger.info('conversa marcada pra revisão', { conversaId })
+      await registrarEvento('conversa_marcada_revisao', {
+        clienteId: cliente.id,
+        detalhe: { conversaId },
+      })
     }
   } catch (err) {
     logger.error('webhook: erro ao marcar conversa para revisão', {
       erro: err instanceof Error ? err.message : String(err),
+    })
+    await registrarEvento('revisao_erro', {
+      clienteId: cliente.id,
+      detalhe: { conversaId, ...resumoErro(err) },
     })
   }
 
@@ -330,6 +391,10 @@ async function tratarTurno(args: {
   } catch (err) {
     logger.error('webhook: erro no handoff por email', {
       erro: err instanceof Error ? err.message : String(err),
+    })
+    await registrarEvento('encaminhamento_falha_email', {
+      clienteId: cliente.id,
+      detalhe: { conversaId, ...resumoErro(err) },
     })
   }
 }
@@ -382,10 +447,19 @@ async function dispararHandoffSeNecessario(args: {
       leadIntencao: aiResponse.leadIntencao ?? null,
       leadResumo: aiResponse.leadResumo ?? null,
     })
+    // O e-mail do prestador e os dados do lead ficam só no log; o evento leva ids
+    await registrarEvento(resendModo === 'real' ? 'encaminhamento_enviado' : 'encaminhamento_mock', {
+      clienteId: cliente.id,
+      detalhe: { conversaId, emailId: result.id },
+    })
   } else {
     logger.warn('handoff falhou (success=false)', {
       conversaId,
       emailId: result.id,
+    })
+    await registrarEvento('encaminhamento_falha_email', {
+      clienteId: cliente.id,
+      detalhe: { conversaId, emailId: result.id, motivo: 'success_false' },
     })
   }
 }

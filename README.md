@@ -40,12 +40,13 @@ APIs:
 | `POST /api/admin/login` | Login do admin (`ADMIN_PASSWORD`) |
 | `POST /api/admin/logout` | Logout do admin |
 | `POST /api/admin/clientes/[id]/cerebro` | Salva o cérebro do cliente |
-| `POST /api/admin/clientes/[id]/status` | Altera o status do cliente |
+| `POST /api/admin/clientes/[id]/status` | Altera o status do cliente (e o tira da lista do interruptor geral) |
+| `POST /api/admin/interruptor` | Interruptor geral de manutenção: `ligar` (pede a senha de novo) ou `desligar` |
 | `GET /api/admin/clientes/[id]/conversas/[conversaId]/mensagens` | Lê mensagens de uma conversa |
 | `POST /demo/[token]/mensagem` | Mensagem na demo |
 | `POST /demo/[token]/reiniciar` | Reinicia a sessão da demo |
 
-Páginas: `/`, `/admin`, `/admin/login`, `/admin/clientes`, `/admin/clientes/[id]/cerebro`, `/admin/clientes/[id]/conversas`, `/admin/clientes/[id]/conversas/[conversaId]` e `/demo/[token]`.
+Páginas: `/`, `/admin`, `/admin/login`, `/admin/clientes`, `/admin/eventos`, `/admin/clientes/[id]/cerebro`, `/admin/clientes/[id]/conversas`, `/admin/clientes/[id]/conversas/[conversaId]` e `/demo/[token]`.
 
 ## Variáveis de ambiente
 
@@ -70,6 +71,12 @@ Modelo em [`.env.example`](./.env.example).
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
 
 `APP_SECRET` é opcional por segurança de rollout: sem ela o webhook não verifica a assinatura (e avisa no log a cada evento). Com ela errada, o robô para de responder; para voltar, apague a variável no Railway, sem novo deploy. Troque a chave primeiro no staging.
+
+## Observabilidade
+
+- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos, resumo de conversa, limite diário de encaminhamentos, recusa da ferramenta de encaminhamento) entram no catálogo quando a função existir.
+- **Registro técnico por chamada de IA** (`RegistroResposta`, sem tela por enquanto): modelo, versão do prompt (`VERSAO_PROMPT` em `build-prestador-prompt.ts`: mude junto com qualquer alteração de prompt), tokens de entrada/saída/cache, tempo, ferramentas, custo estimado, origem (`whatsapp`, `teste`, `bateria`) e função (`resposta`, `busca_documentos`, `resumo`, `transcricao`). Os preços ficam em `src/lib/ai/precos.ts`.
+- **Interruptor geral** (tela `/admin/clientes`): coloca todos os clientes ativos em manutenção, pedindo a senha do painel. "Voltar ao normal" reativa só os clientes que o próprio interruptor colocou; o botão de cada cliente manda mais: quem já estava em manutenção continua, e quem teve o botão mexido à mão sai da lista do interruptor.
 
 ## Áudio
 

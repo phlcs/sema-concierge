@@ -78,6 +78,66 @@ model DemoMensagem {
   @@index([demoId, sessaoId, createdAt])
 }
 
+// Eventos operacionais (T5). Sem relação com Cliente de propósito: o registro
+// sobrevive à exclusão do cliente e também serve a eventos sem cliente. O
+// detalhe guarda só identificadores, nunca dados pessoais.
+model Evento {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  tema      String
+  evento    String
+  gravidade String
+  clienteId String?
+  detalhe   Json?
+
+  @@index([createdAt])
+  @@index([tema, gravidade, createdAt])
+  @@index([clienteId, createdAt])
+}
+
+// Registro técnico de cada chamada de IA (T5). Sem tela nesta tarefa.
+model RegistroResposta {
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+  // whatsapp (cliente real) | teste (link de demo) | bateria
+  origem             String
+  // resposta | busca_documentos | resumo | transcricao
+  funcao             String
+  clienteId          String?
+  demoId             String?
+  conversaId         String?
+  provedor           String
+  modelo             String
+  versaoPrompt       String?
+  // Total de entrada, já contando a parte que veio do cache
+  tokensEntrada      Int?
+  tokensSaida        Int?
+  // Parte da entrada lida do cache
+  tokensCache        Int?
+  // Parte da entrada gravada no cache (só a Anthropic cobra à parte)
+  tokensCacheEscrita Int?
+  tempoMs            Int
+  // [{ nome, resultado }]
+  ferramentas        Json?
+  custoEstimadoUsd   Float?
+  sucesso            Boolean  @default(true)
+
+  @@index([createdAt])
+  @@index([clienteId, createdAt])
+  @@index([origem, funcao, createdAt])
+}
+
+// Interruptor geral de manutenção (T5): uma linha só (id "geral"). Guarda quais
+// clientes ELE colocou em manutenção, para "voltar ao normal" restaurar só esses.
+// Mexer no botão de um cliente tira o cliente desta lista (o botão do cliente manda).
+model InterruptorGeral {
+  id          String    @id
+  ligado      Boolean   @default(false)
+  ligadoEm    DateTime?
+  clientesIds String[]
+  updatedAt   DateTime  @updatedAt
+}
+
 enum MessageRole {
   USER
   ASSISTANT

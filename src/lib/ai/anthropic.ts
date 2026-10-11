@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { validateOutput } from './validate-output'
-import type { AiResponse } from './schema'
+import { validarSaida } from './validate-output'
+import type { ResultadoProvedor } from './registro'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -20,7 +20,7 @@ export async function callAnthropic(
   systemPromptMomento: string,
   history: HistoryMessage[],
   userMessage: string
-): Promise<AiResponse> {
+): Promise<ResultadoProvedor> {
   const client = getClient(apiKey)
 
   const response = await client.messages.create(
@@ -51,5 +51,17 @@ export async function callAnthropic(
   const textBlock = response.content.find((b) => b.type === 'text')
   const raw = textBlock?.type === 'text' ? textBlock.text : ''
 
-  return validateOutput(raw)
+  // input_tokens não inclui o cache; a entrada total soma as três partes
+  const u = response.usage
+  const lidos = u.cache_read_input_tokens ?? 0
+  const escritos = u.cache_creation_input_tokens ?? 0
+  return {
+    saida: validarSaida(raw),
+    uso: {
+      tokensEntrada: u.input_tokens + lidos + escritos,
+      tokensSaida: u.output_tokens,
+      tokensCache: lidos,
+      tokensCacheEscrita: escritos,
+    },
+  }
 }

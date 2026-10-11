@@ -78,19 +78,24 @@ function tryExtractJson(raw: string): unknown {
   }
 }
 
-export function validateOutput(raw: string): AiResponse {
+// 'leitura': a resposta não veio como o JSON esperado; 'vazamento': o filtro de saída a trocou
+export type ProblemaSaida = 'leitura' | 'vazamento'
+
+export type SaidaValidada = { resposta: AiResponse; problema: ProblemaSaida | null }
+
+export function validarSaida(raw: string): SaidaValidada {
   const parsed = tryExtractJson(raw)
 
   if (!parsed) {
     logger.warn('validateOutput: failed to parse JSON from LLM response')
-    return FALLBACK_RESPONSE
+    return { resposta: FALLBACK_RESPONSE, problema: 'leitura' }
   }
 
   const result = AiResponseSchema.safeParse(parsed)
 
   if (!result.success) {
     logger.warn('validateOutput: Zod validation failed', { issues: result.error.issues.map(i => i.message) })
-    return FALLBACK_RESPONSE
+    return { resposta: FALLBACK_RESPONSE, problema: 'leitura' }
   }
 
   const response = result.data
@@ -103,8 +108,12 @@ export function validateOutput(raw: string): AiResponse {
   // Detect system prompt leakage — resposta genérica, sem handoff nem dados de lead
   if (textLeak(response)) {
     logger.warn('validateOutput: detected leak in LLM output — replaced by generic response')
-    return LEAK_RESPONSE
+    return { resposta: LEAK_RESPONSE, problema: 'vazamento' }
   }
 
-  return response
+  return { resposta: response, problema: null }
+}
+
+export function validateOutput(raw: string): AiResponse {
+  return validarSaida(raw).resposta
 }

@@ -1,21 +1,7 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
 import { makeAuthCookie, signToken } from '@/lib/auth'
 import { ADMIN_SUB } from '@/lib/admin/guard'
-
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a, 'utf8')
-  const bb = Buffer.from(b, 'utf8')
-  // Compare against a buffer of the same length to keep timing constant,
-  // then AND with a length-equality check so different lengths still fail.
-  const len = Math.max(ab.length, bb.length, 1)
-  const ap = Buffer.alloc(len)
-  const bp = Buffer.alloc(len)
-  ab.copy(ap)
-  bb.copy(bp)
-  const eq = timingSafeEqual(ap, bp)
-  return eq && ab.length === bb.length
-}
+import { safeEqual } from '@/lib/admin/senha'
 
 export async function POST(req: Request) {
   const expected = process.env.ADMIN_PASSWORD

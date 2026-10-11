@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
-import { validateOutput } from './validate-output'
+import { validarSaida } from './validate-output'
 import { logger } from '@/lib/logger'
-import type { AiResponse } from './schema'
+import type { ResultadoProvedor } from './registro'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -26,7 +26,7 @@ export async function callOpenAI(
   systemPromptMomento: string,
   history: HistoryMessage[],
   userMessage: string
-): Promise<AiResponse> {
+): Promise<ResultadoProvedor> {
   const client = getClient(apiKey)
 
   const response = await client.chat.completions.create(
@@ -55,5 +55,13 @@ export async function callOpenAI(
 
   const raw = response.choices[0]?.message?.content ?? ''
 
-  return validateOutput(raw)
+  return {
+    saida: validarSaida(raw),
+    uso: {
+      tokensEntrada: response.usage?.prompt_tokens ?? null,
+      tokensSaida: response.usage?.completion_tokens ?? null,
+      tokensCache: response.usage?.prompt_tokens_details?.cached_tokens ?? null,
+      tokensCacheEscrita: null,
+    },
+  }
 }

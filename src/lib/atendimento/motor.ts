@@ -6,6 +6,8 @@ import {
 } from '@/lib/ai/validate-input'
 import { buildDadosDoMomento, buildPrestadorPrompt } from '@/lib/ai/build-prestador-prompt'
 import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/schema'
+import type { ContextoRegistro } from '@/lib/ai/registro'
+import { registrarEvento } from '@/lib/eventos'
 import { logger } from '@/lib/logger'
 
 // createdAt só serve pro aviso de tempo; não vai pro provedor de IA
@@ -45,8 +47,10 @@ export async function responderMensagem(args: {
   origemAnuncio: boolean
   // só é chamado quando a entrada passa no filtro
   carregarHistorico: () => Promise<HistoryMessage[]>
+  // Quem está atendendo (WhatsApp, demo, bateria): vai para o registro técnico e os eventos
+  contexto: ContextoRegistro
 }): Promise<ResultadoMotor> {
-  const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico } = args
+  const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico, contexto } = args
   const itens = mensagens.map((m) => (typeof m === 'string' ? { texto: m, deAudio: false } : m))
   const texto = itens.map((m) => m.texto).join('\n')
   const temAudio = itens.some((m) => m.deAudio)
@@ -61,6 +65,17 @@ export async function responderMensagem(args: {
     ? ({ ok: false, reason: 'too_long' } as const)
     : validateInput(texto, limiteJunto)
   if (!inputCheck.ok) {
+    // O detalhe leva só o motivo e o tamanho; o texto bloqueado nunca é gravado
+    await registrarEvento('entrada_bloqueada', {
+      clienteId: contexto.clienteId,
+      detalhe: {
+        origem: contexto.origem,
+        motivo: inputCheck.reason,
+        tamanho: texto.length,
+        conversaId: contexto.conversaId ?? null,
+        demoId: contexto.demoId ?? null,
+      },
+    })
     return {
       mensagem: renderResposta(BLOCKED_RESPONSE),
       aiResponse: BLOCKED_RESPONSE,
@@ -80,7 +95,13 @@ export async function responderMensagem(args: {
 
   let aiResponse: AiResponse
   try {
-    aiResponse = await chatComplete({ systemPrompt, systemPromptMomento, history, userMessage: texto })
+    aiResponse = await chatComplete({
+      systemPrompt,
+      systemPromptMomento,
+      history,
+      userMessage: texto,
+      contexto,
+    })
   } catch (err) {
     logger.error('webhook: chatComplete falhou', {
       erro: err instanceof Error ? err.message : String(err),

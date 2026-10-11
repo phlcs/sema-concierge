@@ -16,6 +16,7 @@ import {
   contarMensagensUsuario,
   salvarMensagemDemo,
 } from '@/lib/demo/conversa'
+import type { ContextoRegistro } from '@/lib/ai/registro'
 import { COOKIE_SESSAO, novaSessao, opcoesCookieSessao, sessaoValida } from '@/lib/demo/sessao'
 
 const LIMITE_CORPO_BYTES = 4096
@@ -42,6 +43,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     return NextResponse.json({ error: 'encerrada' }, { status: 410 })
   }
   const demo = acesso.demo
+  // Link de teste: o registro técnico e os eventos levam a origem "teste" e o id da demo
+  const contexto: ContextoRegistro = { origem: 'teste', demoId: demo.id }
 
   const ehAudio = (req.headers.get('content-type') ?? '').startsWith('multipart/form-data')
   const limiteCorpo = ehAudio ? LIMITE_CORPO_AUDIO_BYTES : LIMITE_CORPO_BYTES
@@ -80,6 +83,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     const resultado = await transcreverBuffer(
       Buffer.from(await arquivo.arrayBuffer()),
       arquivo.type || 'audio/webm',
+      contexto,
     )
     // Frase fixa, sem IA e sem gravar nada (igual ao WhatsApp)
     if (!resultado.ok) {
@@ -125,6 +129,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     ehPrimeiraMensagem,
     origemAnuncio: false,
     carregarHistorico: () => carregarHistoricoDemo(demo.id, sessaoId),
+    contexto,
   })
 
   await salvarMensagemDemo({

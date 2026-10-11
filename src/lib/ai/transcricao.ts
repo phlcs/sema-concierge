@@ -1,5 +1,7 @@
 import OpenAI, { toFile } from 'openai'
 import { logger } from '@/lib/logger'
+import { estimarCustoTranscricaoUsd } from './precos'
+import { registrarResposta, USO_VAZIO, type ContextoRegistro } from './registro'
 
 const MODELO_PADRAO = 'gpt-4o-mini-transcribe'
 const TIMEOUT_MS = 30_000
@@ -31,23 +33,77 @@ const EXTENSOES: Record<string, string> = {
 let _client: { chave: string; client: OpenAI } | undefined
 
 // Devolve o texto do áudio. Lança se a chave faltar, a chamada falhar ou o texto vier vazio.
-// O texto transcrito nunca vai para o log.
-export async function transcreverAudio(buffer: Buffer, mime: string): Promise<string> {
-  const chave = chaveOpenAI()
-  if (_client?.chave !== chave) _client = { chave, client: new OpenAI({ apiKey: chave }) }
-
+// O texto transcrito nunca vai para o log. Cada chamada deixa um registro técnico (T5);
+// `segundos` é a duração do áudio quando dá para ler, base do custo estimado por minuto.
+export async function transcreverAudio(
+  buffer: Buffer,
+  mime: string,
+  contexto: ContextoRegistro,
+  segundos: number | null = null,
+): Promise<string> {
+  const inicio = Date.now()
   const model = modeloDeAudio()
-  const tipo = mime.split(';')[0].trim().toLowerCase()
-  const file = await toFile(buffer, `audio.${EXTENSOES[tipo] ?? 'ogg'}`, { type: tipo })
+  const registrar = (args: {
+    sucesso: boolean
+    entrada: number | null
+    saida: number | null
+    segundos: number | null
+  }) =>
+    registrarResposta({
+      contexto,
+      funcao: 'transcricao',
+      provedor: 'openai',
+      modelo: model,
+      uso: {
+        ...USO_VAZIO,
+        tokensEntrada: args.entrada,
+        tokensSaida: args.saida,
+      },
+      tempoMs: Date.now() - inicio,
+      // Chamada que falhou antes de responder não é cobrada
+      custoEstimadoUsd:
+        args.entrada != null || args.segundos != null
+          ? estimarCustoTranscricaoUsd(model, {
+              segundos: args.segundos,
+              tokensEntrada: args.entrada,
+              tokensSaida: args.saida,
+            })
+          : null,
+      sucesso: args.sucesso,
+    })
 
-  const res = await _client.client.audio.transcriptions.create(
-    { file, model, language: 'pt' },
-    { timeout: TIMEOUT_MS },
-  )
+  let registrado = false
+  try {
+    const chave = chaveOpenAI()
+    if (_client?.chave !== chave) _client = { chave, client: new OpenAI({ apiKey: chave }) }
 
-  logger.info('openai: áudio transcrito', { model, bytes: buffer.length, caracteres: res.text.length })
+    const tipo = mime.split(';')[0].trim().toLowerCase()
+    const file = await toFile(buffer, `audio.${EXTENSOES[tipo] ?? 'ogg'}`, { type: tipo })
 
-  const texto = res.text.trim()
-  if (!texto) throw new Error('transcrição vazia')
-  return texto
+    const res = await _client.client.audio.transcriptions.create(
+      { file, model, language: 'pt' },
+      { timeout: TIMEOUT_MS },
+    )
+
+    logger.info('openai: áudio transcrito', { model, bytes: buffer.length, caracteres: res.text.length })
+
+    // A chamada foi cobrada mesmo se o texto vier vazio; só o "sucesso" muda
+    const texto = res.text.trim()
+    const usage = res.usage
+    registrado = true
+    await registrar({
+      sucesso: texto.length > 0,
+      entrada: usage?.type === 'tokens' ? usage.input_tokens : null,
+      saida: usage?.type === 'tokens' ? usage.output_tokens : null,
+      segundos: usage?.type === 'duration' ? usage.seconds : segundos,
+    })
+
+    if (!texto) throw new Error('transcrição vazia')
+    return texto
+  } catch (err) {
+    if (!registrado) {
+      await registrar({ sucesso: false, entrada: null, saida: null, segundos: null })
+    }
+    throw err
+  }
 }

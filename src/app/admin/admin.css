@@ -540,3 +540,126 @@
   color: rgba(244, 246, 236, 0.5);
   text-align: right;
 }
+
+/* Interruptor geral de manutenção (T5) */
+.sema-admin .interruptor {
+  margin-bottom: 24px;
+  border-color: var(--green-2);
+}
+
+.sema-admin .interruptor.on {
+  border-color: #d6a85b;
+  background: rgba(214, 168, 91, 0.08);
+}
+
+.sema-admin .interruptor-titulo {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--off);
+  margin: 0 0 8px;
+}
+
+.sema-admin .interruptor p {
+  margin-bottom: 12px;
+}
+
+.sema-admin .interruptor strong {
+  color: var(--off);
+}
+
+.sema-admin .interruptor-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sema-admin .interruptor-acoes input {
+  width: 240px;
+}
+
+.sema-admin .badge-geral {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--green-2);
+  color: var(--lime);
+}
+
+.sema-admin .badge-geral.on {
+  background: #d6a85b;
+  border-color: #d6a85b;
+  color: var(--forest-2);
+}
+
+.sema-admin button.btn-perigo {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.sema-admin button.btn-perigo:hover {
+  background: rgba(232, 138, 138, 0.12);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Lista de eventos (T5) */
+.sema-admin .filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+}
+
+.sema-admin .filtros .field {
+  margin-bottom: 0;
+}
+
+.sema-admin .filtros-acoes {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sema-admin select,
+.sema-admin input[type='date'] {
+  padding: 10px 12px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--forest);
+  color: var(--paper);
+  font-size: 15px;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.sema-admin .dot.erro {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(232, 138, 138, 0.18);
+}
+
+.sema-admin .eventos-table td {
+  vertical-align: top;
+}
+
+.sema-admin .eventos-table .col-acao {
+  font-variant-numeric: tabular-nums;
+}
+
+.sema-admin .detalhe-evento {
+  word-break: break-word;
+  font-size: 13px;
+}
+
+.sema-admin .paginacao {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+}

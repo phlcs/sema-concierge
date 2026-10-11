@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger'
+import { registrarEvento, resumoErro } from '@/lib/eventos'
 import { normalizarNumero } from './phone'
 
 type EnviarTextoArgs = {
@@ -6,6 +7,18 @@ type EnviarTextoArgs = {
   phoneNumberId: string
   para: string
   mensagem: string
+  // Só para o registro de eventos
+  clienteId?: string
+}
+
+// Código de erro da Graph API (error.code), se o corpo vier no formato esperado
+function codigoDoErroMeta(corpo: string): number | null {
+  try {
+    const codigo = (JSON.parse(corpo) as { error?: { code?: unknown } })?.error?.code
+    return typeof codigo === 'number' ? codigo : null
+  } catch {
+    return null
+  }
 }
 
 export async function enviarTexto({
@@ -13,9 +26,11 @@ export async function enviarTexto({
   phoneNumberId,
   para,
   mensagem,
+  clienteId,
 }: EnviarTextoArgs): Promise<void> {
   if (!token) {
     logger.warn('sem token para o cliente', { phoneNumberId })
+    await registrarEvento('envio_sem_token', { clienteId, detalhe: { phoneNumberId } })
     return
   }
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`
@@ -26,14 +41,24 @@ export async function enviarTexto({
     text: { body: mensagem },
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  } catch (err) {
+    // Rede fora do ar etc.: registra e segue lançando, como antes
+    await registrarEvento('envio_falha_meta', {
+      clienteId,
+      detalhe: { phoneNumberId, ...resumoErro(err) },
+    })
+    throw err
+  }
 
   if (!res.ok) {
     const texto = await res.text().catch(() => '')
@@ -41,6 +66,10 @@ export async function enviarTexto({
       phoneNumberId,
       status: res.status,
       resposta: texto,
+    })
+    await registrarEvento('envio_falha_meta', {
+      clienteId,
+      detalhe: { phoneNumberId, status: res.status, codigoMeta: codigoDoErroMeta(texto) },
     })
   }
 }

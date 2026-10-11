@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger'
 import { transcreverAudio } from '@/lib/ai/transcricao'
+import type { ContextoRegistro } from '@/lib/ai/registro'
 import { duracaoOggOpusSegundos } from './audio-duracao'
 import { baixarMidia, MidiaGrandeDemais } from './midia'
 
@@ -20,7 +21,11 @@ export type ResultadoAudio =
 // Do arquivo ao texto: confere a duração (quando dá para ler) e transcreve. Serve ao
 // WhatsApp (depois de baixar da Meta) e à demo (áudio gravado no navegador).
 // Nunca lança: qualquer erro vira { ok: false, motivo: 'falha' }
-export async function transcreverBuffer(buffer: Buffer, mime: string): Promise<ResultadoAudio> {
+export async function transcreverBuffer(
+  buffer: Buffer,
+  mime: string,
+  contexto: ContextoRegistro,
+): Promise<ResultadoAudio> {
   try {
     if (buffer.length > LIMITE_AUDIO_BYTES) throw new MidiaGrandeDemais(buffer.length)
 
@@ -30,7 +35,7 @@ export async function transcreverBuffer(buffer: Buffer, mime: string): Promise<R
       return { ok: false, motivo: 'longo' }
     }
 
-    const texto = await transcreverAudio(buffer, mime)
+    const texto = await transcreverAudio(buffer, mime, contexto, duracao)
     return { ok: true, texto: `${PREFIXO_AUDIO} ${texto}` }
   } catch (err) {
     if (err instanceof MidiaGrandeDemais) {
@@ -45,7 +50,10 @@ export async function transcreverBuffer(buffer: Buffer, mime: string): Promise<R
 }
 
 // Nunca lança: qualquer erro vira { ok: false, motivo: 'falha' }
-export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio> {
+export async function obterTextoDoAudio(
+  mediaId: string,
+  contexto: ContextoRegistro,
+): Promise<ResultadoAudio> {
   let midia
   try {
     midia = await baixarMidia({
@@ -61,7 +69,7 @@ export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio
     logger.warn('audio: falha ao baixar', { erro: err instanceof Error ? err.message : String(err) })
     return { ok: false, motivo: 'falha' }
   }
-  return transcreverBuffer(midia.buffer, midia.mime)
+  return transcreverBuffer(midia.buffer, midia.mime, contexto)
 }
 
 // A transcrição começa na chegada do áudio e corre durante a espera do turno; o
@@ -70,14 +78,18 @@ export async function obterTextoDoAudio(mediaId: string): Promise<ResultadoAudio
 const EM_ANDAMENTO = new Map<string, Promise<ResultadoAudio>>()
 const TTL_MS = 5 * 60 * 1000
 
-export function iniciarTranscricao(wamid: string, mediaId: string): void {
+export function iniciarTranscricao(wamid: string, mediaId: string, contexto: ContextoRegistro): void {
   if (EM_ANDAMENTO.has(wamid)) return
-  EM_ANDAMENTO.set(wamid, obterTextoDoAudio(mediaId))
+  EM_ANDAMENTO.set(wamid, obterTextoDoAudio(mediaId, contexto))
   setTimeout(() => EM_ANDAMENTO.delete(wamid), TTL_MS).unref()
 }
 
-export async function aguardarTranscricao(wamid: string, mediaId: string): Promise<ResultadoAudio> {
+export async function aguardarTranscricao(
+  wamid: string,
+  mediaId: string,
+  contexto: ContextoRegistro,
+): Promise<ResultadoAudio> {
   const emAndamento = EM_ANDAMENTO.get(wamid)
   EM_ANDAMENTO.delete(wamid)
-  return emAndamento ?? obterTextoDoAudio(mediaId)
+  return emAndamento ?? obterTextoDoAudio(mediaId, contexto)
 }

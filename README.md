@@ -45,6 +45,9 @@ APIs:
 | `GET /api/admin/clientes/[id]/conversas/[conversaId]/mensagens` | Lê mensagens de uma conversa |
 | `POST /demo/[token]/mensagem` | Mensagem na demo |
 | `POST /demo/[token]/reiniciar` | Reinicia a sessão da demo |
+| `GET /api/bateria/clientes` | Bateria (T6): lista os cadastros. Só com `BATERIA_TOKEN` |
+| `GET /api/bateria/clientes/[id]/cerebro` | Bateria: devolve o cérebro do cliente. Só com `BATERIA_TOKEN` |
+| `POST /api/bateria/clientes/[id]/resposta` | Bateria: uma resposta do Concierge, sem gravar conversa. Só com `BATERIA_TOKEN` |
 
 Páginas: `/`, `/admin`, `/admin/login`, `/admin/clientes`, `/admin/eventos`, `/admin/clientes/[id]/cerebro`, `/admin/clientes/[id]/conversas`, `/admin/clientes/[id]/conversas/[conversaId]` e `/demo/[token]`.
 
@@ -69,6 +72,7 @@ Modelo em [`.env.example`](./.env.example).
 | `RESEND_MODE` | `mock` (padrão, só loga) ou `real` |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de handoff no modo `real` |
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
+| `BATERIA_TOKEN` | Senha da porta da bateria de personas (mínimo 32 caracteres). Só no ambiente de dev. Vazia = porta desligada |
 
 `APP_SECRET` é opcional por segurança de rollout: sem ela o webhook não verifica a assinatura (e avisa no log a cada evento). Com ela errada, o robô para de responder; para voltar, apague a variável no Railway, sem novo deploy. Troque a chave primeiro no staging.
 
@@ -97,9 +101,43 @@ npx prisma migrate dev
 npm run dev
 ```
 
-Scripts: `dev`, `build`, `start` (roda `prisma migrate deploy` antes), `lint` e `seed` (o `prisma/seed.ts` está vazio). Não há testes automatizados nem CI.
+Scripts: `dev`, `build`, `start` (roda `prisma migrate deploy` antes), `lint`, `seed` (o `prisma/seed.ts` está vazio) e `bateria` (ver abaixo). Não há testes unitários nem CI.
 
 Clientes não têm tela de criação: são inseridos direto no banco. Prospect e cliente são o mesmo cadastro (`Cliente`): o prospect existe sem número de WhatsApp (`status: prospect`) e, quando fecha, ganha o `phoneNumberId` e passa a `ativo`. Todo cliente tem um link de teste (`/demo/{testeToken}`), gerado automaticamente e bloqueado até ser liberado no admin (7 dias por vez).
+
+## Bateria de personas
+
+Teste automatizado do atendimento (T6), sob demanda. Uma IA faz o papel do cliente e o Concierge da dev responde de verdade, pelo mesmo motor e com o mesmo cérebro do link de teste. Cada conversa vira um arquivo de texto e o script dá um placar com o motivo de cada falha. O Claude Code lê as conversas com a régua de `bateria/criterios.md` e escreve o relatório crítico. O passo a passo dele fica em `.claude/skills/bateria/SKILL.md`: basta pedir "roda a bateria do Candê".
+
+- **Onde roda:** fora do site, no terminal do Claude Code, contra a dev. A porta da bateria (`/api/bateria/...`) ignora se o link de teste está liberado, não grava nada em `DemoMensagem`, não conta no limite de mensagens do link e não aparece nas conversas do cliente. O custo do Concierge fica no registro técnico com origem `bateria`.
+- **Arquivos:**
+  - `bateria/arquetipos.json`: o jeito de cada persona. Tem os 7 fixos da T6 mais os que vieram dos relatórios do Chrome.
+  - `bateria/clientes/<cliente>.json`: o que cada persona quer, as mensagens-chave, se espera encaminhamento e as checagens do cliente.
+  - `bateria/criterios.md`: a régua.
+  - `bateria/resultados/<cliente>/<data_hora>/`: as conversas, o `placar.md`, o `placar.json` e o `relatorio.md`. Essa pasta é commitada, para comparar com a rodada anterior.
+- **Comandos:**
+  - `npm run bateria -- listar`: lista os cadastros da dev.
+  - `npm run bateria -- cerebro <nome>`: baixa o cérebro para `bateria/.cerebros/`, que fica fora do git.
+  - `npm run bateria -- <cliente> [--persona a,b] [--arquetipo X] [--repeticoes N] [--max-turnos N] [--paralelo N]`: roda a bateria. Os padrões são 1 repetição, 12 mensagens do cliente e 3 conversas em paralelo.
+- **Checagens automáticas:**
+  - mais de uma pergunta na mesma mensagem;
+  - "vou encaminhar" depois de já ter encaminhado;
+  - encaminhou quando não devia, ou não encaminhou quando devia;
+  - card com campo vazio;
+  - "assistente virtual" sem o cliente perguntar;
+  - travessão;
+  - resposta de erro, vazamento ou bloqueio inesperado;
+  - dizer "encaminhei" ou "anotei" sem card, ou "o time ajusta" depois do card;
+  - as regras de cada cliente: o que o card tem que trazer e o que a fala não pode ter.
+- **Variáveis no ambiente do Claude Code** (não no Railway):
+
+| Variável | Para que serve |
+|---|---|
+| `BATERIA_URL` | Endereço da dev (ex.: `https://dev.usesema.com.br`) |
+| `BATERIA_TOKEN` | A mesma senha configurada no Railway de dev |
+| `BATERIA_ANTHROPIC_KEY` | Chave da Anthropic usada pelo cliente simulado |
+| `BATERIA_MODELO` | Opcional; modelo do cliente simulado (padrão `claude-sonnet-5-5`) |
+| `BATERIA_ANTHROPIC_BASE_URL` | Opcional; padrão `https://api.anthropic.com` |
 
 ## Deploy
 

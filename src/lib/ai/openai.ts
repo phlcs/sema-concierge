@@ -50,8 +50,12 @@ export async function callOpenAI(
   const client = getClient(apiKey)
 
   // Parte fixa primeiro: o cache automático da OpenAI reaproveita o prefixo idêntico
+  // O prompt vai como mensagem de sistema (developer) dentro do input, não em
+  // `instructions`: com text.format json_object a API exige a palavra "json" nas
+  // mensagens do input, e `instructions` não conta.
   const instructions = [systemPrompt, systemPromptMomento].filter(Boolean).join('\n\n')
   const input: ResponseInputItem[] = [
+    { role: 'developer' as const, content: instructions },
     ...history.map((h) => ({ role: h.role, content: h.content })),
     { role: 'user' as const, content: userMessage },
   ]
@@ -73,7 +77,6 @@ export async function callOpenAI(
     client.responses.create(
       {
         model,
-        instructions,
         input,
         ...(isReasoningModel(model)
           ? { reasoning: { effort: 'low' as const }, max_output_tokens: 4000 }

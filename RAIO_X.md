@@ -346,7 +346,15 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 - Tabela de auditoria ou analytics: **não existe**.
 
 ### Testes automatizados
-- **Não existe.** Sem arquivos `*.test.*`/`*.spec.*`, sem script `test` no `package.json`, sem framework de teste nas dependências, sem pasta `.github` (sem CI). Só existe `npm run lint` (ESLint).
+- **Testes unitários e CI: não existem.** Não há arquivos `*.test.*`/`*.spec.*`, framework de teste nem pasta `.github`. Além do `npm run lint` (ESLint), existe a bateria de personas.
+- **Bateria de personas (T6):** `npm run bateria -- <cliente>`, sob demanda, rodada pelo Claude Code contra a dev. O detalhe está no README, seção "Bateria de personas". Como funciona:
+  - **Simulação:** uma IA da Anthropic (`BATERIA_ANTHROPIC_KEY`, modelo padrão `claude-sonnet-5-5`, sem `temperature`, que o modelo não aceita) faz o cliente juntando uma pessoa (fixa), uma situação (fixa) e a ficha do cliente (o que é "o pedido" naquele negócio). As situações de prompt injection (11 e 12) usam mensagens fixas, sem a IA. Mensagem do cliente simulado com marcação técnica ou texto de bastidor é descartada e pedida de novo (até 3 tentativas, regex `MENSAGEM_INVALIDA` em `bateria/rodar.ts`).
+  - **Respostas:** o Concierge responde por `POST /api/bateria/clientes/[id]/resposta`. Essa rota chama `responderMensagem` com o cérebro do cadastro e o histórico mandado pelo script, com o contexto `{ origem: 'bateria', clienteId }`.
+  - **O que fica gravado:** nada em `DemoMensagem`. Fica só o `RegistroResposta` (origem `bateria`) e os eventos do motor.
+  - **Card:** igual ao do link de teste, no máximo um por conversa.
+  - **Acesso:** as três rotas `/api/bateria/*` só respondem com `Authorization: Bearer <BATERIA_TOKEN>` (mínimo de 32 caracteres, comparação em tempo constante, em `src/lib/bateria/acesso.ts`). Sem a variável ou com senha errada, respondem 404. A rota de cérebro devolve o `Cliente.cerebro` inteiro.
+  - **Arquivos:** `bateria/pessoas.json` (8), `bateria/situacoes.json` (13), uma ficha por cliente em `bateria/clientes/*.json`, a régua da leitura crítica em `bateria/criterios.md` e os resultados commitados em `bateria/resultados/`.
+  - **Como o Claude Code roda:** pela skill `.claude/skills/bateria/SKILL.md`.
 
 ---
 
@@ -372,4 +380,4 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 16. **Resíduos e código morto.** `checkRateLimit`, Cal.com, Kiwify, `sendBookingConfirmation`, `checklist`/`steps`; README descreve rotas que não existem (`chat`, `booking`, `payment`) e o produto antigo; `instrumentation.ts` fazia upsert de um cliente "Teste" em todo boot, inclusive em produção (removido na T7).
 17. **Dados pessoais em log.** O log de handoff grava nome, telefone e resumo do lead em texto.
 18. **Admin com senha única** compartilhada, sem usuário individual e sem auditoria de quem editou o cérebro ou mudou status.
-19. **Zero testes automatizados e sem CI.** Qualquer mudança no prompt, nos filtros ou no fluxo só é verificada manualmente.
+19. **Sem testes unitários e sem CI.** A bateria de personas (T6) cobre o atendimento, mas só roda quando alguém pede. Nada impede subir uma mudança de prompt sem rodar a bateria. O cliente simulado é mais organizado que o real, o resultado varia entre rodadas e a bateria não testa o canal do WhatsApp (junção de mensagens, áudio, envio).

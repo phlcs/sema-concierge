@@ -8,7 +8,8 @@
     "start": "prisma migrate deploy && next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "lint": "eslint",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "bateria": "tsx bateria/rodar.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

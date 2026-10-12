@@ -1,0 +1,29 @@
+{
+  "cliente": "Agência Mais Resultado, agência de marketing digital do Rio (anúncios no Google, Instagram e Facebook)",
+  "nomeNoCadastro": "Mais Resultado",
+  "pedido": "pedir uma conversa com a equipe comercial para anunciar um negócio seu, pequeno ou médio, que você inventa",
+  "dadosDoPedido": [
+    "nome",
+    "tipo de negócio",
+    "o que quer melhorar",
+    "quanto investe hoje",
+    "telefone",
+    "melhor horário para contato"
+  ],
+  "pedidoGeraEncaminhamento": true,
+  "regraDoEncaminhamento": "O atendente qualifica o lead (negócio, objetivo, verba) e encaminha para a equipe comercial.",
+  "assuntos": [
+    "como funcionam os anúncios",
+    "contrato e fidelidade",
+    "como medem resultado",
+    "quanto custa",
+    "quem é a agência"
+  ],
+  "perguntaSemResposta": "vocês fazem anúncio no TikTok?",
+  "documento": {
+    "nome": "contrato da agência",
+    "pergunta": "qual é a multa de rescisão e o prazo de aviso prévio?"
+  },
+  "nuncaPodeDizer": [],
+  "observacoes": "Montada a partir do relatório da rodada 2 (01/10/2026). Se o cérebro mudar, revisar os assuntos e a pergunta sem resposta."
+}

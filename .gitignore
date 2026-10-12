@@ -46,3 +46,6 @@ prisma/migrations/dev.db*
 _design-bundle/
 
 /src/generated/prisma
+
+# Bateria de personas: cérebros baixados para montar personas (dado do cliente)
+bateria/.cerebros/

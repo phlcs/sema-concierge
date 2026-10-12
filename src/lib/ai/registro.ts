@@ -20,7 +20,12 @@ export type FerramentaChamada = { nome: string; resultado: string }
 export type UsoIa = UsoTokens
 
 // O que cada provedor devolve: a resposta já validada e o consumo medido na chamada
-export type ResultadoProvedor = { saida: SaidaValidada; uso: UsoIa }
+export type ResultadoProvedor = {
+  saida: SaidaValidada
+  uso: UsoIa
+  // Ferramentas chamadas no ciclo (só OpenAI, T9)
+  ferramentas?: FerramentaChamada[]
+}
 
 export const USO_VAZIO: UsoIa = {
   tokensEntrada: null,

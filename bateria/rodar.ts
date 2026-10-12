@@ -82,7 +82,18 @@ type Ficha = {
 
 // ─── Tipos da conversa e do placar ──────────────────────────────────────────
 
-type Card = { nome: string | null; intencao: string | null; resumo: string | null; motivo: string | null }
+type Campo = { nome: string; valor: string }
+
+type Card = {
+  nome: string | null
+  intencao: string | null
+  resumo: string | null
+  motivo: string | null
+  campos: Campo[]
+}
+
+// Encaminhamento já registrado, reenviado à porta a cada turno (T9): a porta não grava nada
+type EncaminhamentoAnterior = { campos: Campo[]; intencao: string | null; resumo: string | null; em: string }
 
 type Turno =
   | { role: 'user'; texto: string }
@@ -91,8 +102,10 @@ type Turno =
       texto: string
       encaminhou: boolean
       card: Card | null
-      // Pediu card de novo depois do primeiro: no link de teste esse pedido é ignorado
+      // Registrou outro encaminhamento depois do primeiro (permitido até 3 por dia, T9)
       segundoCard: boolean
+      // Resultado da ferramenta no turno ("registrado", "faltando: data"...)
+      ferramenta: string | null
       bloqueio: string | null
     }
 
@@ -119,6 +132,7 @@ type RespostaPorta = {
   leadNome: string | null
   leadIntencao: string | null
   leadResumo: string | null
+  campos: Campo[] | null
   bloqueio: string | null
   provedor: string | null
   modelo: string | null
@@ -206,8 +220,13 @@ class Porta {
     return this.chamar<{ id: string; nomeNegocio: string; cerebro: unknown }>(`/clientes/${id}/cerebro`)
   }
 
-  responder(id: string, historico: { role: 'user' | 'assistant'; texto: string }[], mensagem: string) {
-    return this.chamar<RespostaPorta>(`/clientes/${id}/resposta`, { historico, mensagem })
+  responder(
+    id: string,
+    historico: { role: 'user' | 'assistant'; texto: string }[],
+    mensagem: string,
+    encaminhamentos: EncaminhamentoAnterior[],
+  ) {
+    return this.chamar<RespostaPorta>(`/clientes/${id}/resposta`, { historico, mensagem, encaminhamentos })
   }
 }
 
@@ -350,7 +369,9 @@ function semLinks(texto: string): string {
 }
 
 function textoDoCard(card: Card): string {
-  return [card.nome, card.intencao, card.resumo].filter(Boolean).join('\n')
+  return [card.nome, card.intencao, card.resumo, ...card.campos.map((c) => `${c.nome}: ${c.valor}`)]
+    .filter(Boolean)
+    .join('\n')
 }
 
 const PEDE_NOME = /como (voc[eê] se chama|posso te chamar|te chamo)|qual (é )?(o )?seu nome|what('s| is) your name|me (diz|fala|passa) seu nome/i
@@ -506,6 +527,7 @@ async function conversar(args: {
   const maxTurnos = fixas ? fixas.length : args.maxTurnos
   const turnos: Turno[] = []
   let card: Card | null = null
+  const encaminhamentos: EncaminhamentoAnterior[] = []
   let fim: Resultado['fim'] = fixas ? 'cliente_encerrou' : 'limite_de_turnos'
   let erroExecucao: string | null = null
 
@@ -519,15 +541,29 @@ async function conversar(args: {
       }
       const historico = turnos.map((t) => ({ role: t.role, texto: t.texto }))
       turnos.push({ role: 'user', texto: mensagem })
-      const r = await porta.responder(clienteId, historico, mensagem)
+      const r = await porta.responder(clienteId, historico, mensagem, encaminhamentos)
       args.versao.provedor ??= r.provedor
       args.versao.modelo ??= r.modelo
       args.versao.versaoPrompt ??= r.versaoPrompt
 
-      // Mesma regra do link de teste: no máximo um card por conversa
+      if (r.encaminhou) {
+        encaminhamentos.push({
+          campos: r.campos ?? [],
+          intencao: r.leadIntencao,
+          resumo: r.leadResumo,
+          em: new Date().toISOString(),
+        })
+      }
+      // O card avaliado é o do primeiro encaminhamento; os seguintes ficam marcados no turno
       const novoCard = r.encaminhou && !card
       if (novoCard) {
-        card = { nome: r.leadNome, intencao: r.leadIntencao, resumo: r.leadResumo, motivo: r.motivo }
+        card = {
+          nome: r.leadNome,
+          intencao: r.leadIntencao,
+          resumo: r.leadResumo,
+          motivo: r.motivo,
+          campos: r.campos ?? [],
+        }
       }
       turnos.push({
         role: 'assistant',
@@ -535,6 +571,7 @@ async function conversar(args: {
         encaminhou: novoCard,
         card: novoCard ? card : null,
         segundoCard: r.encaminhou && !novoCard,
+        ferramenta: r.motivo,
         bloqueio: r.bloqueio,
       })
     }
@@ -572,6 +609,7 @@ function cardEmTexto(card: Card): string {
     `- **Intenção:** ${card.intencao ?? '(vazio)'}`,
     `- **Motivo:** ${card.motivo ?? '(vazio)'}`,
     `- **Resumo:** ${card.resumo ?? '(vazio)'}`,
+    ...card.campos.map((c) => `- **${c.nome}:** ${c.valor}`),
   ].join('\n')
 }
 
@@ -603,7 +641,8 @@ function conversaEmTexto(r: Resultado, cena: Cena): string {
     n += 1
     const marcas = [
       t.encaminhou ? 'CARD GERADO' : null,
-      t.segundoCard ? 'pediu outro card (ignorado, como no link de teste)' : null,
+      t.segundoCard ? 'registrou outro encaminhamento' : null,
+      t.ferramenta ? `ferramenta: ${t.ferramenta}` : null,
       t.bloqueio ? `bloqueio: ${t.bloqueio}` : null,
     ].filter(Boolean)
     linhas.push(`**Concierge (${n}):** ${t.texto}${marcas.length ? `\n_[${marcas.join(' · ')}]_` : ''}`, '')

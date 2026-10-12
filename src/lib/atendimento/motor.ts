@@ -9,6 +9,20 @@ import { BLOCKED_RESPONSE, FALLBACK_RESPONSE, type AiResponse } from '@/lib/ai/s
 import type { ContextoRegistro } from '@/lib/ai/registro'
 import { registrarEvento } from '@/lib/eventos'
 import { logger } from '@/lib/logger'
+import { inicioDoDiaBrasilia } from '@/lib/ai/build-prestador-prompt'
+import type { Ferramentas } from '@/lib/ai/ferramentas'
+import {
+  NOME_FERRAMENTA,
+  blocoEstado,
+  conferirPedido,
+  contarDesde,
+  definicaoFerramenta,
+  lerCamposPedido,
+  textoDoResultado,
+  type EncaminhamentoFeito,
+  type NovoEncaminhamento,
+  type PortaEncaminhamento,
+} from './encaminhamento'
 
 // createdAt só serve pro aviso de tempo; não vai pro provedor de IA
 export type HistoryMessage = { role: 'user' | 'assistant'; content: string; createdAt?: Date }
@@ -34,11 +48,16 @@ export type ResultadoMotor = {
   aiResponse: AiResponse
   // reason do validateInput quando a entrada foi bloqueada; null quando passou
   bloqueio: string | null
+  // Encaminhamentos registrados pela ferramenta neste turno (T9). A porta envia o e-mail/card.
+  encaminhamentos: NovoEncaminhamento[]
+  // Resultado de cada chamada da ferramenta no turno ("registrado", "faltando: data"...)
+  resultadosFerramenta: string[]
 }
 
 // Motor de atendimento compartilhado pelas "portas" (webhook do WhatsApp, demo):
 // filtro de entrada, prompt com o cérebro, chamada da IA e filtro de saída.
-// Persistência, envio, QA e handoff ficam em cada porta.
+// O registro do encaminhamento acontece aqui, pela ferramenta; persistência das
+// mensagens, envio, QA e o e-mail/card do encaminhamento ficam em cada porta.
 export async function responderMensagem(args: {
   cerebro: unknown
   // Mensagens do turno, em ordem de chegada. A demo manda uma só.
@@ -49,6 +68,8 @@ export async function responderMensagem(args: {
   carregarHistorico: () => Promise<HistoryMessage[]>
   // Quem está atendendo (WhatsApp, demo, bateria): vai para o registro técnico e os eventos
   contexto: ContextoRegistro
+  // Lista de campos do pedido do cliente (T8) e onde guardar os encaminhamentos (T9)
+  encaminhamento: { camposPedido: unknown; porta: PortaEncaminhamento }
 }): Promise<ResultadoMotor> {
   const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico, contexto } = args
   const itens = mensagens.map((m) => (typeof m === 'string' ? { texto: m, deAudio: false } : m))
@@ -80,18 +101,33 @@ export async function responderMensagem(args: {
       mensagem: renderResposta(BLOCKED_RESPONSE),
       aiResponse: BLOCKED_RESPONSE,
       bloqueio: inputCheck.reason,
+      encaminhamentos: [],
+      resultadosFerramenta: [],
     }
   }
 
-  const history = await carregarHistorico()
+  const agora = new Date()
+  const [history, feitos] = await Promise.all([carregarHistorico(), args.encaminhamento.porta.listar()])
   const ultimaMensagemPessoaEm =
     history.findLast((m) => m.role === 'user' && m.createdAt)?.createdAt ?? null
 
   // Ordem: prompt base + cérebro (fixo, cacheável), dados do momento, continuação/anúncio, histórico
   const systemPrompt = buildPrestadorPrompt(cerebro)
-  let systemPromptMomento = buildDadosDoMomento({ agora: new Date(), ultimaMensagemPessoaEm })
+  let systemPromptMomento = buildDadosDoMomento({ agora, ultimaMensagemPessoaEm })
+  systemPromptMomento += `\n\n${blocoEstado(feitos, agora)}`
   if (!ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_CONTINUACAO
   if (origemAnuncio && ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_ORIGEM_ANUNCIO
+
+  const encaminhamentos: NovoEncaminhamento[] = []
+  const resultadosFerramenta: string[] = []
+  const ferramentas = ferramentaDeEncaminhamento({
+    camposPedido: args.encaminhamento.camposPedido,
+    porta: args.encaminhamento.porta,
+    feitos,
+    contexto,
+    aoRegistrar: (novo) => encaminhamentos.push(novo),
+    aoResponder: (resultado) => resultadosFerramenta.push(resultado),
+  })
 
   let aiResponse: AiResponse
   try {
@@ -101,6 +137,7 @@ export async function responderMensagem(args: {
       history,
       userMessage: texto,
       contexto,
+      ferramentas,
     })
   } catch (err) {
     logger.error('webhook: chatComplete falhou', {
@@ -109,5 +146,70 @@ export async function responderMensagem(args: {
     aiResponse = FALLBACK_RESPONSE
   }
 
-  return { mensagem: renderResposta(aiResponse), aiResponse, bloqueio: null }
+  return {
+    mensagem: renderResposta(aiResponse),
+    aiResponse,
+    bloqueio: null,
+    encaminhamentos,
+    resultadosFerramenta,
+  }
+}
+
+// Ferramenta registrar_pedido: confere campos e limite do dia e só então grava.
+// O que foi registrado aqui vale mesmo que a resposta final seja trocada depois
+// (filtro de vazamento, falha da IA): a ação da ferramenta nunca é desfeita.
+function ferramentaDeEncaminhamento(args: {
+  camposPedido: unknown
+  porta: PortaEncaminhamento
+  feitos: EncaminhamentoFeito[]
+  contexto: ContextoRegistro
+  aoRegistrar: (novo: NovoEncaminhamento) => void
+  aoResponder: (resultado: string) => void
+}): Ferramentas {
+  const campos = lerCamposPedido(args.camposPedido)
+  const { contexto } = args
+  const doTurno: EncaminhamentoFeito[] = []
+  const detalhe = {
+    origem: contexto.origem,
+    conversaId: contexto.conversaId ?? null,
+    demoId: contexto.demoId ?? null,
+  }
+
+  return {
+    definicoes: [definicaoFerramenta(campos)],
+    executar: async (nome, pedido) => {
+      if (nome !== NOME_FERRAMENTA) return 'erro: ferramenta desconhecida'
+      try {
+        const agora = new Date()
+        const feitosHoje = contarDesde([...args.feitos, ...doTurno], inicioDoDiaBrasilia(agora))
+        const r = conferirPedido({ campos, pedido, feitosHoje })
+        const resultado = textoDoResultado(r)
+        args.aoResponder(resultado)
+
+        if (r.tipo === 'registrado') {
+          await args.porta.registrar(r.encaminhamento)
+          doTurno.push({ ...r.encaminhamento, createdAt: agora })
+          args.aoRegistrar(r.encaminhamento)
+        } else if (r.tipo === 'faltando') {
+          // Só os nomes dos campos, nunca os valores
+          await registrarEvento('encaminhamento_recusado_campo', {
+            clienteId: contexto.clienteId,
+            detalhe: { ...detalhe, faltando: r.campos.join(', ') },
+          })
+        } else if (r.tipo === 'limite') {
+          await registrarEvento('encaminhamento_limite_atingido', {
+            clienteId: contexto.clienteId,
+            detalhe: { ...detalhe, feitosHoje },
+          })
+        }
+        return resultado
+      } catch (err) {
+        logger.error('motor: erro na ferramenta de encaminhamento', {
+          erro: err instanceof Error ? err.message : String(err),
+        })
+        args.aoResponder('erro')
+        return 'erro: não foi possível registrar agora. Não diga que encaminhou; peça para a pessoa tentar de novo em instantes.'
+      }
+    },
+  }
 }

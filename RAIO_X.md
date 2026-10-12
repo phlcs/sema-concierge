@@ -1,6 +1,6 @@
 # Raio-X do Concierge (Sema)
 
-Retrato factual do código na branch `dev` (atualizado na T8). Só descreve o que existe. Nada aqui é proposta.
+Retrato factual do código na branch `dev` (atualizado na T9). Só descreve o que existe. Nada aqui é proposta.
 
 ---
 
@@ -27,11 +27,12 @@ Retrato factual do código na branch `dev` (atualizado na T8). Só descreve o qu
 
 | Tabela | Campos principais | Uso |
 |---|---|---|
-| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao`; da T8: `modo` (`conversao` / `hospitalidade` / `resolucao`, nulo = não definido), `camposPedido` (Json `[{nome, obrigatorio}]`), `nomeRemetente`, `destinoEncaminhamento` (default `email`), `canaisFallback` (Json `{principal, sac?, rh?, compras?, imprensa?, urgencia?}`, cada um `{tipo, contato}`) | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste. Os campos da T8 ainda não são lidos pelo atendimento |
+| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao`; da T8: `modo` (`conversao` / `hospitalidade` / `resolucao`, nulo = não definido), `camposPedido` (Json `[{nome, obrigatorio}]`), `nomeRemetente`, `destinoEncaminhamento` (default `email`), `canaisFallback` (Json `{principal, sac?, rh?, compras?, imprensa?, urgencia?}`, cada um `{tipo, contato}`) | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste. Dos campos da T8, só `camposPedido` é lido pelo atendimento (ferramenta de encaminhamento, T9) |
 | `WhatsappConversation` | `id`, `clienteId`, `numeroContato`, `handoffEm`, `revisar`, `createdAt`, `updatedAt`; unique `(clienteId, numeroContato)` | Uma conversa por contato por cliente |
 | `WhatsappMessage` | `id`, `conversationId`, `role` (`USER`/`ASSISTANT`), `texto`, `createdAt` | Mensagens do WhatsApp |
 | `Demo` | (`@@ignore`) | Tabela antiga, mantida só como cópia de segurança da migração da T7. Cada demo virou um `Cliente` prospect com o mesmo id e o mesmo token. Sem uso no código |
 | `DemoMensagem` | `clienteId`, `demoId` (histórico), `sessaoId`, `role`, `texto`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo` | Mensagens do link de teste |
+| `Encaminhamento` (T9) | `clienteId`, `conversaId` (WhatsApp) ou `sessaoId` (link de teste), `campos` (Json `[{nome, valor}]`, na ordem do cadastro), `intencao`, `resumo`, `createdAt`; índices `(conversaId, createdAt)` e `(clienteId, sessaoId, createdAt)`; apaga junto com o cliente ou a conversa | Cada encaminhamento registrado pela ferramenta `registrar_pedido`. Base do limite de 3 novos por dia e do estado mostrado à IA. A bateria não grava aqui |
 
 - Criação e edição de `Cliente` pelo admin (T8): `/admin/clientes/novo` e `/admin/clientes/[id]` (componente `src/app/admin/clientes/CadastroForm.tsx`), rotas `POST /api/admin/clientes` (cria com `status: prospect`), `PUT /api/admin/clientes/[id]` e `POST /api/admin/clientes/[id]/ativar` (prospect → ativo, só com `phoneNumberId` salvo). Validação do formulário em `src/lib/admin/cadastro.ts` (Zod): modo obrigatório, e-mail válido, fallback principal obrigatório, campo do pedido sem nome descartado e nome repetido recusado, remetente vazio vira "Concierge [nome]", cliente não-prospect não pode ficar sem `phoneNumberId`. ID da Meta repetido → 409. O `testeToken` é gerado pelo banco e o link nasce bloqueado. `prisma/seed.ts` está vazio.
 - Link de teste: `/demo/{testeToken}`. Liberado enquanto `testeLiberadoAte` está no futuro; o admin (`/admin/clientes`) libera por 7 dias ou bloqueia (`POST /api/admin/clientes/[id]/liberar-teste`). O limite de mensagens conta a partir de `testeLiberadoEm`, ou seja, zera a cada liberação.
@@ -44,7 +45,7 @@ Retrato factual do código na branch `dev` (atualizado na T8). Só descreve o qu
 |---|---|---|---|
 | Anthropic | `src/lib/ai/anthropic.ts` → `callAnthropic()` | `claude-haiku-4-5` | `max_tokens: 1200`, `temperature: 0.3`, system com `cache_control: ephemeral`, timeout 20s |
 | Gemini | `src/lib/ai/gemini.ts` → `callGemini()` | `gemini-2.5-flash` | `maxOutputTokens: 1200`, `temperature: 0.3`, `responseMimeType: 'application/json'`, timeout 20s (Promise.race) |
-| OpenAI | `src/lib/ai/openai.ts` → `callOpenAI()` | `gpt-5.4-mini` | Modelo de raciocínio (regex `isReasoningModel`): `reasoning_effort: 'low'`, `max_completion_tokens: 4000`. Senão: `temperature: 0.3`, `max_completion_tokens: 1200`. Sempre `response_format: json_object`, timeout 20s |
+| OpenAI | `src/lib/ai/openai.ts` → `callOpenAI()` | `gpt-5.4-mini` | Modelo de raciocínio (regex `isReasoningModel`): `reasoning_effort: 'low'`, `max_completion_tokens: 4000`. Senão: `temperature: 0.3`, `max_completion_tokens: 1200`. Sempre `response_format: json_object`, timeout 20s por chamada. Única que recebe ferramentas (`tools`): ciclo de até 2 rodadas com ferramenta e uma final sem, tokens somados (T9) |
 
 - Roteamento: `src/lib/ai/index.ts` → `chatComplete()`. Qualquer erro → `FALLBACK_RESPONSE`.
 - A saída é sempre JSON validado por Zod (`src/lib/ai/schema.ts` → `AiResponseSchema`) em `src/lib/ai/validate-output.ts` → `validateOutput()`.
@@ -77,9 +78,9 @@ Arquivo central: `src/app/api/whatsapp/webhook/route.ts`.
    7. `salvarMensagem(USER)` e depois `salvarMensagem(ASSISTANT)` — **as duas só depois da resposta da IA**.
    8. `enviarTexto()` → Graph API. Se `WHATSAPP_TOKEN` vazio: log `warn` e não envia. Se a Meta devolver erro: log `error`. Não há retry.
    9. QA: `precisaRevisar(texto) || precisaRevisar(mensagem)` (`src/lib/qa/keywords.ts`) → marca `revisar = true` na conversa.
-   10. Handoff: `dispararHandoffSeNecessario()` (ver seção 5).
+   10. Encaminhamento: para cada encaminhamento registrado pela ferramenta no turno, `enviarEncaminhamento()` manda o e-mail (ver seção 5).
 
-A demo web (`src/app/demo/[token]/mensagem/route.ts`) usa o mesmo `responderMensagem()`, mas é síncrona (responde a resposta do bot no próprio HTTP), salva em `DemoMensagem` e não envia e-mail.
+A demo web (`src/app/demo/[token]/mensagem/route.ts`) usa o mesmo `responderMensagem()`, mas é síncrona (responde a resposta do bot no próprio HTTP), salva em `DemoMensagem` e não envia e-mail: o encaminhamento registrado vira o card da tela.
 
 ---
 
@@ -135,39 +136,21 @@ Colete só o necessário: o nome e o que a pessoa precisa. NUNCA peça CPF, docu
 Se o cliente mandar áudio, imagem ou documento que você não consegue ler, peça com leveza pra mandar por escrito.
 
 # COMO ENCAMINHAR
-Quando a conversa chega no ponto de encaminhar (cliente quer avaliação do caso, quer agendar/pagar, ou você bateu numa lacuna): garanta que tem o NOME da pessoa, sinalize o handoff na resposta estruturada (suggestBook=true) com um motivo em uma frase (bookReason), e feche a recepção com transição amigável dizendo que ${nomePrestador} retorna ${prazoRetorno}.
-
-Quando marcar suggestBook=true, preencha TAMBÉM os campos do card de handoff que o prestador vai receber:
-- leadNome: nome do contato, se ele tiver dito durante a conversa; caso ainda não saiba, null.
-- leadIntencao: em UMA linha, o que a pessoa quer (ex.: "quer marcar diagnóstico", "quer entender preço do plano mensal").
-- leadResumo: 2 a 3 linhas com o contexto útil pro prestador agir (situação da pessoa, o que já foi dito, o que ela tá perguntando). Sem floreio, direto.
-Quando suggestBook=false, os três vão null.
-
-# AGORA
-Data e hora atuais: ${dataHoraAtual}. Use isso pra entender pedidos de tempo e saber se o negócio está dentro do horário.
+Encaminhar é passar o pedido para ${nomePrestador}. Você faz isso SÓ pela ferramenta registrar_pedido; nunca diga que encaminhou, anotou ou passou adiante sem ter chamado a ferramenta e recebido "registrado".
+(... passos: juntar os dados que a ferramenta pede; data só se for dia específico; chamar a ferramenta e responder conforme "registrado" / "faltando: X" / "limite atingido"; depois de registrado, não repetir "vou encaminhar". Texto completo em build-prestador-prompt.ts, bloco <como_encaminhar>, desde a T9.)
 
 # FORMATO DE RESPOSTA — JSON OBRIGATÓRIO
-Responda SEMPRE apenas com JSON válido neste formato exato, nada de texto antes ou depois:
+A mensagem final ao cliente é SEMPRE apenas JSON válido neste formato exato, nada de texto antes ou depois:
 
 {
   "paragraphs": ["string", "string"],
   "checklist": null,
-  "steps": null,
-  "suggestBook": true,
-  "bookReason": "string curta",
-  "leadNome": "string ou null",
-  "leadIntencao": "string ou null",
-  "leadResumo": "string ou null"
+  "steps": null
 }
 
-- paragraphs: SEMPRE preenchido. 1 a 3 parágrafos CURTOS, em texto corrido (é WhatsApp). É a mensagem que o cliente recebe.
+- paragraphs: SEMPRE preenchido. 1 a 3 parágrafos CURTOS, em texto corrido (é WhatsApp), no idioma da pessoa. É a mensagem que o cliente recebe.
 - checklist: sempre null. Não use.
 - steps: sempre null. Não use.
-- suggestBook: true quando for caso de encaminhar pro prestador (cliente quer avaliação/fechar, ou você bateu numa lacuna); false caso contrário.
-- bookReason: quando suggestBook=true, uma frase curta dizendo por que encaminhar; quando false, null.
-- leadNome: quando suggestBook=true, o nome do contato (se ele tiver dito); senão null. Quando suggestBook=false, sempre null.
-- leadIntencao: quando suggestBook=true, em uma linha o que a pessoa quer. Quando suggestBook=false, sempre null.
-- leadResumo: quando suggestBook=true, 2 a 3 linhas de contexto útil pro prestador. Quando suggestBook=false, sempre null.
 
 # CONTEXTO DO NEGÓCIO
 NOME_DO_NEGOCIO: ${nomeNegocio}
@@ -203,7 +186,9 @@ Esta conversa começou por um anúncio. O cliente já recebeu uma mensagem de ab
    2. `# AGORA` com data e hora;
    3. `# FORMATO DE RESPOSTA`;
    4. `# CONTEXTO DO NEGÓCIO` (o cérebro) — **no fim** do texto fixo;
-   5. `INSTRUCAO_CONTINUACAO` **ou** `INSTRUCAO_ORIGEM_ANUNCIO` (no máximo um dos dois).
+   5. Dados do momento (data, hora, calendário) e `<estado_encaminhamento>` (T9): encaminhamentos já registrados na conversa, com campos e horário, e quantos novos hoje, com aviso quando o limite foi atingido (`blocoEstado()` em `src/lib/atendimento/encaminhamento.ts`);
+   6. `INSTRUCAO_CONTINUACAO` **ou** `INSTRUCAO_ORIGEM_ANUNCIO` (no máximo um dos dois).
+   7. Na OpenAI, a definição da ferramenta `registrar_pedido` vai em `tools`, com a lista de campos do pedido do cliente na descrição.
 2. **Histórico**: as 40 últimas mensagens, em ordem cronológica, como turnos `user`/`assistant`.
 3. **Mensagem atual** do cliente como último turno `user`.
 
@@ -252,34 +237,34 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 
 ---
 
-## 5. Handoff
+## 5. Handoff (encaminhamento)
+
+Desde a T9 o encaminhamento é uma **ferramenta** da IA. O código decide primeiro; a IA escreve depois, já sabendo o resultado. Código em `src/lib/atendimento/encaminhamento.ts` e `src/lib/atendimento/motor.ts` → `ferramentaDeEncaminhamento()`.
 
 ### O que dispara
-- O campo **`suggestBook: true`** na resposta JSON do modelo. A decisão é 100% do LLM, guiada pelas seções "COMO ENCAMINHAR" e "FORMATO DE RESPOSTA" do prompt.
+- A IA chama `registrar_pedido` com `campos` (chaves = nomes da lista `Cliente.camposPedido`), `intencao` e `resumo`. Cliente sem lista: só `nome`, obrigatório. Guiada pelo bloco `<como_encaminhar>` do prompt e pela descrição da ferramenta.
+- Só a OpenAI recebe a ferramenta. Com Anthropic ou Gemini o robô não encaminha.
 
-### O que o código valida
-- `validate-output.ts` → `validateOutput()`:
-  - JSON precisa passar no `AiResponseSchema` (Zod); senão vira `FALLBACK_RESPONSE` (`suggestBook: false`);
-  - se `suggestBook` e não houver `bookReason`, preenche `'Este caso requer atendimento personalizado.'`;
-  - se detectar vazamento (`FORBIDDEN_PATTERNS` / `LEAK_MARKERS`) em qualquer campo, troca tudo por `LEAK_RESPONSE` (`suggestBook: false`), ou seja, o handoff some.
-- `route.ts` → `dispararHandoffSeNecessario()`:
-  - sai se `aiResponse.suggestBook !== true`;
-  - **cooldown de 24h** (`HANDOFF_COOLDOWN_MS`): se `handoffEm` da conversa for de menos de 24h atrás, não envia de novo.
-- Exigir `leadNome` preenchido: **não existe** (o prompt pede, o código não checa; vazio vira "não informado").
-- `bookReason` é gerado mas **não é usado** no e-mail nem salvo.
+### O que o código valida (`conferirPedido()`)
+- Campos obrigatórios: vazio, "não informado", "não sei", "-", "?" contam como faltando → `faltando: X` (evento `encaminhamento_recusado_campo`, só com os nomes dos campos).
+- Limite: 3 encaminhamentos novos por dia por conversa, contados desde a meia-noite de Brasília (`inicioDoDiaBrasilia()` em `build-prestador-prompt.ts`) → `limite atingido` (evento `encaminhamento_limite_atingido`). Substitui o antigo cooldown de 24h.
+- Senão grava em `Encaminhamento` e devolve `registrado`. Valor de campo cortado em 300 caracteres.
+- Formato do campo (data válida, número): **não é conferido**. Data vaga fica vazia por instrução da ferramenta.
+- Erro ao gravar: a ferramenta devolve "erro" e pede para a IA não dizer que encaminhou.
+- O filtro de vazamento (`validate-output.ts`) só troca o texto; o encaminhamento já registrado nunca é desfeito. Nomes da ferramenta (`registrar_pedido`) e dos campos antigos estão nos `LEAK_MARKERS`.
 
 ### O que é enviado e por qual canal
-- **E-mail via Resend**, adapter em `src/lib/integrations/resend/`:
-  - `RESEND_MODE=real` → `real.ts` → `enviarHandoff()`: `POST https://api.resend.com/emails`, `from: "Sema <RESEND_FROM_EMAIL>"`, `to: Cliente.emailPrestador`, assunto `"Novo Lead - Sema dd/mm"` (`handoff-campos.ts` → `assuntoHandoff()`), HTML + texto com: **Nome, Contato (número normalizado), O que quer, Resumo, Quando**.
+- **E-mail via Resend**, adapter em `src/lib/integrations/resend/`, enviado **depois** da resposta ao lead, um por encaminhamento registrado no turno (`enviarEncaminhamento()` no webhook):
+  - `RESEND_MODE=real` → `real.ts` → `enviarHandoff()`: `POST https://api.resend.com/emails`, `from: "Sema <RESEND_FROM_EMAIL>"`, `to: Cliente.emailPrestador`, assunto `"Novo Lead - Sema dd/mm"` (`handoff-campos.ts` → `assuntoHandoff()`), HTML + texto com: **Nome (campo "nome" do pedido), Contato (número normalizado), O que quer, campos do pedido na ordem do cadastro, Resumo, Quando**. Assunto, remetente e formato novos ficam para a T10.
   - `RESEND_MODE` diferente de `real` (default `mock`) → `mock.ts`: **só escreve log**, nada é enviado, e retorna `success: true`.
-- Se der certo, grava `WhatsappConversation.handoffEm = agora`.
-- Se o envio real falhar, `real.ts` lança erro, que é capturado em `tratarMensagem()` e vira log `error`. `handoffEm` não é gravado, então o próximo `suggestBook: true` tenta de novo.
+- Se der certo, grava `WhatsappConversation.handoffEm = agora` (selo "Handoff" no admin) e o evento `encaminhamento_enviado` (ou `encaminhamento_mock`).
+- Se o envio falhar, fica o evento `encaminhamento_falha_email`. A IA já terá dito que encaminhou (risco aceito; retry fica para depois).
 - Aviso pelo WhatsApp para o prestador, ou outro canal além de e-mail: **não existe**.
 
 ### Depois do handoff
-- **A conversa continua igual**: o bot segue respondendo todas as mensagens do contato. Não há mudança de estado, pausa ou silêncio.
-- O único efeito é `handoffEm` preenchido, que: (a) bloqueia novo e-mail por 24h e (b) mostra o selo "Handoff" na lista de conversas do admin (`src/app/admin/clientes/[id]/conversas/page.tsx`).
-- Na **demo**: e-mail não é enviado; aparece um card na tela (`src/lib/demo/handoff.ts` → `montarCardHandoff()`), no máximo 1 por sessão (`buscarHandoffSessao()`), e os dados do lead ficam salvos em `DemoMensagem`.
+- O bot segue respondendo. Os encaminhamentos feitos aparecem nos dados do momento, para a IA não repetir "vou encaminhar" nem registrar o mesmo pedido de novo; pedido novo e diferente pode ser registrado (até 3 por dia).
+- Na **demo**: e-mail não é enviado; o card da tela (`src/lib/demo/handoff.ts` → `montarCardHandoff()`) mostra o último encaminhamento da sessão (`buscarHandoffSessao()` lê `Encaminhamento` por `sessaoId`). Mesmo limite de 3 por dia. Os dados do lead também ficam na `DemoMensagem` da resposta.
+- Na **bateria**: nada é gravado. O roteiro reenvia os encaminhamentos já feitos na conversa simulada (`portaMemoria()`), e a porta devolve o resultado da ferramenta em `motivo`.
 
 ---
 
@@ -287,11 +272,13 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 
 Além das mensagens (`WhatsappMessage`), a `WhatsappConversation` guarda só:
 - `clienteId`, `numeroContato`
-- `handoffEm` (data do último handoff enviado)
+- `handoffEm` (data do último e-mail de encaminhamento enviado)
 - `revisar` (flag de QA por palavra-chave; só vira `true`, nada no código volta para `false`)
 - `createdAt`, `updatedAt`
 
-**Não existe** persistência de: nome do lead, intenção, resumo, etapa do funil, origem de anúncio, se o humano assumiu, data da última mensagem do cliente (para janela de 24h), JSON bruto da IA, provider/modelo usado.
+Os encaminhamentos da conversa (campos, intenção, resumo, horário) ficam na tabela `Encaminhamento` (T9).
+
+**Não existe** persistência de: etapa do funil, origem de anúncio, se o humano assumiu, data da última mensagem do cliente (para janela de 24h), JSON bruto da IA, provider/modelo usado.
 
 Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo`.
 
@@ -299,8 +286,10 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 
 ## 7. Ferramentas (tools)
 
-- **Não existe.** Nenhum provider é chamado com `tools`/function calling (`anthropic.ts`, `gemini.ts`, `openai.ts`).
-- O modelo só devolve um JSON estruturado (`AiResponseSchema`): `paragraphs`, `checklist`, `steps`, `suggestBook`, `bookReason`, `leadNome`, `leadIntencao`, `leadResumo`.
+- **Ciclo de ferramentas (T9)**: `src/lib/ai/ferramentas.ts` define o formato (`definicoes` + `executar`); `chatComplete()` recebe `ferramentas` e repassa à OpenAI. Em `openai.ts`, se a IA pedir ferramenta, o código executa, devolve o resultado como mensagem `tool` e chama de novo; até 2 rodadas com ferramenta e uma final sem, para obrigar a resposta. Tokens das chamadas são somados; `RegistroResposta.ferramentas` guarda `[{nome, resultado}]`. Base para a T10 (atualizar/cancelar) e a T14 (documentos).
+- Anthropic e Gemini ignoram as ferramentas.
+- Única ferramenta hoje: `registrar_pedido` (seção 5).
+- A resposta final continua JSON (`AiResponseSchema`): `paragraphs`, `checklist`, `steps`. `suggestBook`, `bookReason` e `lead*` saíram na T9; se a IA ainda mandar, o Zod descarta.
   - `checklist` e `steps` existem no schema, mas o prompt manda vir `null` e `renderResposta()` ignora os dois.
 - Integrações Cal.com e Kiwify (`src/lib/integrations/calcom/`, `src/lib/integrations/kiwify/`) existem como código, mas **não são importadas** por nenhuma rota ativa.
 
@@ -329,7 +318,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 - Mensagens que o prestador manda pelo próprio WhatsApp Business: o código não as recebe nem registra.
 
 ### Janela de 24h
-- **Não existe.** Não há checagem da última mensagem do cliente nem envio de template. O bot só responde mensagens recebidas (sempre dentro da janela). O `24h` que aparece no código (`HANDOFF_COOLDOWN_MS`) é o cooldown do e-mail de handoff, não a janela da Meta.
+- **Não existe.** Não há checagem da última mensagem do cliente nem envio de template. O bot só responde mensagens recebidas (sempre dentro da janela). (O antigo cooldown de 24h do e-mail de handoff saiu na T9; o limite agora é de 3 encaminhamentos por dia.)
 
 ---
 
@@ -338,10 +327,10 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 ### O que é registrado
 - **Banco (Postgres):** texto de cada mensagem do cliente e de cada resposta (`WhatsappMessage`), flags `handoffEm` e `revisar`. Inclui mensagens bloqueadas e respostas de fallback/manutenção. Mídia descartada não fica registrada.
 - **Logs (stdout)** via `src/lib/logger.ts` → JSON em produção (visto nos Logs do Railway), texto em dev. No fluxo do WhatsApp:
-  - `info`: mensagem com origem anúncio, auto-reply de manutenção, conversa marcada para revisão, handoff pulado (cooldown), **handoff enviado** (com `emailPrestador`, `leadNome`, `leadContato`, `leadIntencao`, `leadResumo`), `[resend mock] enviarHandoff` (mesmos dados);
+  - `info`: mensagem com origem anúncio, auto-reply de manutenção, conversa marcada para revisão, **handoff enviado** (com `emailPrestador`, `leadNome`, `leadContato`, `leadIntencao`, `leadResumo`, `campos`), `[resend mock] enviarHandoff` (mesmos dados), uso de tokens da OpenAI por rodada;
   - `warn`: cliente não encontrado/inativo, entrada bloqueada (`reason`), sem token, falha de parse/Zod da IA, vazamento detectado, handoff com `success=false`;
-  - `error`: erro geral do webhook, erro do provider (`chatComplete: provider error`), falha no envio da Meta (status + corpo), erro de handoff/revisão.
-- **Não é registrado**: texto das mensagens nos logs, JSON bruto da IA, `bookReason`, provider/modelo usado no WhatsApp (a demo loga provider e modelo), tokens consumidos, latência, custo.
+  - `error`: erro geral do webhook, erro do provider (`chatComplete: provider error`), falha no envio da Meta (status + corpo), erro de handoff/revisão, erro na ferramenta de encaminhamento.
+- **Não é registrado**: texto das mensagens nos logs, JSON bruto da IA, provider/modelo usado no WhatsApp (a demo loga provider e modelo), tokens consumidos, latência, custo.
 - Tabela de auditoria ou analytics: **não existe**.
 
 ### Testes automatizados
@@ -366,7 +355,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 5. **Concorrência.** Mensagens em rajada viram respostas paralelas, histórico fora de ordem, apresentações repetidas e possível erro de unique na criação da conversa.
 6. **Mídia descartada em silêncio.** Quem manda áudio não recebe nenhuma resposta.
 7. **Sem pausa por conversa nem handoff para humano no canal.** Depois do handoff, o bot continua falando com o lead enquanto o prestador pode estar falando também.
-8. **Handoff depende só do `suggestBook` do LLM.** Sem checagem de nome; `RESEND_MODE` default `mock` faz o handoff "dar certo" (grava `handoffEm`) sem e-mail sair; o cooldown de 24h bloqueia um segundo pedido diferente no mesmo dia; detecção de vazamento derruba o handoff junto.
+8. **Handoff (resolvido em parte na T9).** O código agora confere campos obrigatórios e o limite diário, e o filtro de vazamento não derruba mais o encaminhamento. Continua: `RESEND_MODE` default `mock` faz o encaminhamento "dar certo" (grava `handoffEm`) sem e-mail sair; formato do campo não é conferido; se o e-mail falhar, a IA já disse que encaminhou; só funciona com OpenAI.
 9. **Memória limitada por contagem.** 40 mensagens, sem resumo e sem estado persistido do lead; em conversa muito longa o nome e o contexto inicial saem da janela. O teto é por número de mensagens, não por tamanho (cada uma pode ter até ~500 caracteres do cliente).
 10. **Cérebro sem schema de tipos.** Desde a T8 chave com nome errado é recusada ao salvar, mas valor não-string ainda pode virar `"[object Object]"`; sem histórico de versões.
 11. **Filtros por regex com falso positivo/negativo.**

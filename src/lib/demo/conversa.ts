@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { HistoryMessage } from '@/lib/atendimento/motor'
 import { LIMITE_HISTORICO } from '@/lib/whatsapp/conversa'
+import { nomeDoPedido, portaTeste, type CampoPreenchido } from '@/lib/atendimento/encaminhamento'
 
 // Limite próprio da demo (o WhatsApp usa LIMITE_MENSAGEM, por mensagem do turno)
 export const LIMITE_CARACTERES = 500
@@ -87,17 +88,22 @@ export type HandoffSalvo = {
   leadNome: string | null
   leadIntencao: string | null
   leadResumo: string | null
+  campos: CampoPreenchido[]
   createdAt: Date
 }
 
-// Máximo 1 handoff por sessão: devolve o primeiro, se houver
+// Card do link de teste: o último encaminhamento registrado na sessão (T9)
 export async function buscarHandoffSessao(
   clienteId: string,
   sessaoId: string,
 ): Promise<HandoffSalvo | null> {
-  return prisma.demoMensagem.findFirst({
-    where: { clienteId, sessaoId, handoff: true },
-    orderBy: { createdAt: 'asc' },
-    select: { leadNome: true, leadIntencao: true, leadResumo: true, createdAt: true },
-  })
+  const ultimo = (await portaTeste(clienteId, sessaoId).listar()).at(-1)
+  if (!ultimo) return null
+  return {
+    leadNome: nomeDoPedido(ultimo.campos),
+    leadIntencao: ultimo.intencao,
+    leadResumo: ultimo.resumo,
+    campos: ultimo.campos,
+    createdAt: ultimo.createdAt,
+  }
 }

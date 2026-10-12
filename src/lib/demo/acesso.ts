@@ -51,6 +51,8 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
 
 export type DemoConversa = DemoPublica & {
   cerebro: unknown
+  // Lista de campos do pedido (T8), usada pela ferramenta de encaminhamento (T9)
+  camposPedido: unknown
   limiteMensagens: number
   expiraEm: Date
   // Início da liberação atual: o limite de mensagens conta a partir daqui
@@ -77,6 +79,7 @@ export async function carregarDemoParaConversa(
       numeroExibicao: true,
       emailPrestador: true,
       cerebro: true,
+      camposPedido: true,
       testeLimiteMensagens: true,
       testeLiberadoAte: true,
       testeLiberadoEm: true,
@@ -95,6 +98,7 @@ export async function carregarDemoParaConversa(
       numeroExibicao: cliente.numeroExibicao ?? '',
       emailExibicao: cliente.emailPrestador,
       cerebro: cliente.cerebro,
+      camposPedido: cliente.camposPedido,
       limiteMensagens: cliente.testeLimiteMensagens,
       expiraEm: cliente.testeLiberadoAte,
       liberadoEm: cliente.testeLiberadoEm,

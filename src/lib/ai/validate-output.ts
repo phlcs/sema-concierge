@@ -28,9 +28,9 @@ const LEAK_MARKERS: RegExp[] = [
   /CONTEXTO\s+DO\s+NEG[ÓO]CIO/,
   /COMO\s+ENCAMINHAR/,
   /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE)\b/,
-  /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo)\b/,
+  /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo|registrar_pedido)\b/,
   // Marcadores de bloco do prompt e das instruções de continuação/anúncio do motor
-  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|continuacao|origem_anuncio)>/,
+  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|estado_encaminhamento|continuacao|origem_anuncio)>/,
 ]
 
 function allText(response: AiResponse): string {
@@ -38,10 +38,6 @@ function allText(response: AiResponse): string {
     ...(response.paragraphs ?? []),
     ...(response.checklist ?? []),
     ...(response.steps?.map((s) => `${s.title} ${s.description}`) ?? []),
-    response.bookReason ?? '',
-    response.leadNome ?? '',
-    response.leadIntencao ?? '',
-    response.leadResumo ?? '',
   ].join('\n')
 }
 
@@ -100,12 +96,8 @@ export function validarSaida(raw: string): SaidaValidada {
 
   const response = result.data
 
-  // Enforce bookReason when suggestBook is true
-  if (response.suggestBook && !response.bookReason) {
-    response.bookReason = 'Este caso requer atendimento personalizado.'
-  }
-
-  // Detect system prompt leakage — resposta genérica, sem handoff nem dados de lead
+  // Detect system prompt leakage — resposta genérica. Só troca o texto: um
+  // encaminhamento já registrado pela ferramenta nunca é desfeito aqui (T9).
   if (textLeak(response)) {
     logger.warn('validateOutput: detected leak in LLM output — replaced by generic response')
     return { resposta: LEAK_RESPONSE, problema: 'vazamento' }

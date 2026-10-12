@@ -94,6 +94,12 @@ export default function Cabecalho(props: {
                     <div className="row-label">O que quer</div>
                     <div className="row-value">{handoff.intencao}</div>
                   </div>
+                  {(handoff.campos ?? []).map((c) => (
+                    <div className="row" key={c.nome}>
+                      <div className="row-label">{c.nome}</div>
+                      <div className="row-value">{c.valor}</div>
+                    </div>
+                  ))}
                   <div className="row">
                     <div className="row-label">Resumo</div>
                     <div className="row-value">{handoff.resumo}</div>

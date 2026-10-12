@@ -3,6 +3,7 @@ import { callGemini } from './gemini'
 import { callOpenAI } from './openai'
 import { getAiConfig } from './config'
 import { FALLBACK_RESPONSE, type AiResponse } from './schema'
+import type { Ferramentas } from './ferramentas'
 import { VERSAO_PROMPT } from './build-prestador-prompt'
 import {
   registrarResposta,
@@ -24,6 +25,8 @@ interface ChatCompleteOptions {
   userMessage: string
   // Quem pediu a chamada: vai para o registro técnico e para os eventos
   contexto: ContextoRegistro
+  // Ferramentas que a IA pode chamar (T9). Só a OpenAI usa; os outros provedores ignoram.
+  ferramentas?: Ferramentas
 }
 
 export async function chatComplete({
@@ -32,6 +35,7 @@ export async function chatComplete({
   history,
   userMessage,
   contexto,
+  ferramentas,
 }: ChatCompleteOptions): Promise<AiResponse> {
   let provider: string = process.env.AI_PROVIDER ?? 'anthropic'
   let model = process.env.AI_MODEL ?? ''
@@ -49,7 +53,7 @@ export async function chatComplete({
         resultado = await callGemini(apiKey, model, systemPrompt, systemPromptMomento, history, userMessage)
         break
       case 'openai':
-        resultado = await callOpenAI(apiKey, model, systemPrompt, systemPromptMomento, history, userMessage)
+        resultado = await callOpenAI(apiKey, model, systemPrompt, systemPromptMomento, history, userMessage, ferramentas)
         break
       default:
         resultado = await callAnthropic(apiKey, model, systemPrompt, systemPromptMomento, history, userMessage)
@@ -65,8 +69,7 @@ export async function chatComplete({
         versaoPrompt: VERSAO_PROMPT,
         uso,
         tempoMs: Date.now() - inicio,
-        // Ainda não há ferramentas de IA (chegam com a T9); a lista fica pronta
-        ferramentas: [],
+        ferramentas: resultado.ferramentas ?? [],
         sucesso: saida.problema !== 'leitura',
       }),
       saida.problema === 'leitura'

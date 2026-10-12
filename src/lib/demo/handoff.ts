@@ -10,6 +10,8 @@ export type CardHandoff = {
   contato: string
   intencao: string
   resumo: string
+  // Campos do pedido (T9), na ordem do cadastro
+  campos: { nome: string; valor: string }[]
   quando: string
 }
 
@@ -19,6 +21,7 @@ export function montarCardHandoff(args: {
   leadNome: string | null
   leadIntencao: string | null
   leadResumo: string | null
+  campos: { nome: string; valor: string }[]
   quando: Date
 }): CardHandoff {
   const campos = camposDoLead({
@@ -28,7 +31,13 @@ export function montarCardHandoff(args: {
     leadContato: CONTATO_DEMO,
     leadIntencao: args.leadIntencao,
     leadResumo: args.leadResumo,
+    campos: args.campos,
     quando: args.quando,
   })
-  return { para: args.emailExibicao, assunto: assuntoHandoff(args.quando), ...campos }
+  return {
+    para: args.emailExibicao,
+    assunto: assuntoHandoff(args.quando),
+    ...campos,
+    campos: args.campos,
+  }
 }

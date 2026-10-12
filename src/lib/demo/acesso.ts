@@ -2,6 +2,12 @@ import { prisma } from '@/lib/prisma'
 
 const FORMATO_TOKEN = /^[0-9a-f]{64}$/
 
+// Link de teste do cliente (T7): /demo/{testeToken}. Nulo ou vencido = bloqueado.
+function linkLiberado(liberadoAte: Date | null, agora: Date): liberadoAte is Date {
+  return liberadoAte !== null && liberadoAte.getTime() > agora.getTime()
+}
+
+// "id" é o id do Cliente dono do link
 export type DemoPublica = {
   id: string
   nomeNegocio: string
@@ -18,27 +24,26 @@ export type AcessoDemo =
 export async function carregarDemo(token: string, agora: Date = new Date()): Promise<AcessoDemo> {
   if (!FORMATO_TOKEN.test(token)) return { estado: 'inexistente' }
 
-  const demo = await prisma.demo.findUnique({
-    where: { token },
+  const cliente = await prisma.cliente.findUnique({
+    where: { testeToken: token },
     select: {
       id: true,
       nomeNegocio: true,
       numeroExibicao: true,
-      emailExibicao: true,
-      status: true,
-      expiraEm: true,
+      emailPrestador: true,
+      testeLiberadoAte: true,
     },
   })
-  if (!demo) return { estado: 'inexistente' }
+  if (!cliente) return { estado: 'inexistente' }
 
   const publica: DemoPublica = {
-    id: demo.id,
-    nomeNegocio: demo.nomeNegocio,
-    numeroExibicao: demo.numeroExibicao,
-    emailExibicao: demo.emailExibicao,
+    id: cliente.id,
+    nomeNegocio: cliente.nomeNegocio,
+    numeroExibicao: cliente.numeroExibicao ?? '',
+    emailExibicao: cliente.emailPrestador,
   }
 
-  if (demo.status !== 'ativo' || demo.expiraEm.getTime() <= agora.getTime()) {
+  if (!linkLiberado(cliente.testeLiberadoAte, agora)) {
     return { estado: 'encerrada', demo: publica }
   }
   return { estado: 'ativa', demo: publica }
@@ -48,6 +53,8 @@ export type DemoConversa = DemoPublica & {
   cerebro: unknown
   limiteMensagens: number
   expiraEm: Date
+  // Início da liberação atual: o limite de mensagens conta a partir daqui
+  liberadoEm: Date | null
 }
 
 export type AcessoConversa =
@@ -62,34 +69,35 @@ export async function carregarDemoParaConversa(
 ): Promise<AcessoConversa> {
   if (!FORMATO_TOKEN.test(token)) return { estado: 'inexistente' }
 
-  const demo = await prisma.demo.findUnique({
-    where: { token },
+  const cliente = await prisma.cliente.findUnique({
+    where: { testeToken: token },
     select: {
       id: true,
       nomeNegocio: true,
       numeroExibicao: true,
-      emailExibicao: true,
+      emailPrestador: true,
       cerebro: true,
-      limiteMensagens: true,
-      status: true,
-      expiraEm: true,
+      testeLimiteMensagens: true,
+      testeLiberadoAte: true,
+      testeLiberadoEm: true,
     },
   })
-  if (!demo) return { estado: 'inexistente' }
+  if (!cliente) return { estado: 'inexistente' }
 
-  if (demo.status !== 'ativo' || demo.expiraEm.getTime() <= agora.getTime()) {
+  if (!linkLiberado(cliente.testeLiberadoAte, agora)) {
     return { estado: 'encerrada' }
   }
   return {
     estado: 'ativa',
     demo: {
-      id: demo.id,
-      nomeNegocio: demo.nomeNegocio,
-      numeroExibicao: demo.numeroExibicao,
-      emailExibicao: demo.emailExibicao,
-      cerebro: demo.cerebro,
-      limiteMensagens: demo.limiteMensagens,
-      expiraEm: demo.expiraEm,
+      id: cliente.id,
+      nomeNegocio: cliente.nomeNegocio,
+      numeroExibicao: cliente.numeroExibicao ?? '',
+      emailExibicao: cliente.emailPrestador,
+      cerebro: cliente.cerebro,
+      limiteMensagens: cliente.testeLimiteMensagens,
+      expiraEm: cliente.testeLiberadoAte,
+      liberadoEm: cliente.testeLiberadoEm,
     },
   }
 }

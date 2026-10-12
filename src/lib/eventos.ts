@@ -74,6 +74,8 @@ const CATALOGO = {
     gravidade: 'Informativo',
   },
   revisao_erro: { tema: 'Interno', evento: 'Erro na marcação de revisão', gravidade: 'Aviso' },
+  teste_liberado: { tema: 'Interno', evento: 'Link de teste liberado', gravidade: 'Informativo' },
+  teste_bloqueado: { tema: 'Interno', evento: 'Link de teste bloqueado', gravidade: 'Informativo' },
 } as const satisfies Record<string, { tema: Tema; evento: string; gravidade: Gravidade }>
 
 export type ChaveEvento = keyof typeof CATALOGO

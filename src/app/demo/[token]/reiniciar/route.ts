@@ -16,7 +16,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ token: string
   }
 
   const sessaoId = novaSessao()
-  logger.info('demo: reiniciar', { demoId: acesso.demo.id, sessaoId })
+  logger.info('demo: reiniciar', { clienteId: acesso.demo.id, sessaoId })
 
   const res = NextResponse.json({ ok: true })
   res.cookies.set(COOKIE_SESSAO, sessaoId, opcoesCookieSessao(token, acesso.demo.expiraEm))

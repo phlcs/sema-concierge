@@ -43,8 +43,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     return NextResponse.json({ error: 'encerrada' }, { status: 410 })
   }
   const demo = acesso.demo
-  // Link de teste: o registro técnico e os eventos levam a origem "teste" e o id da demo
-  const contexto: ContextoRegistro = { origem: 'teste', demoId: demo.id }
+  // Link de teste: o registro técnico e os eventos levam a origem "teste" e o id do cliente
+  const contexto: ContextoRegistro = { origem: 'teste', clienteId: demo.id }
 
   const ehAudio = (req.headers.get('content-type') ?? '').startsWith('multipart/form-data')
   const limiteCorpo = ehAudio ? LIMITE_CORPO_AUDIO_BYTES : LIMITE_CORPO_BYTES
@@ -75,8 +75,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     }
 
     // Teto antes de transcrever, para não gastar transcrição com demo esgotada
-    if ((await contarMensagensUsuario(demo.id)) >= demo.limiteMensagens) {
-      logger.info('demo: teto de mensagens atingido', { demoId: demo.id })
+    if ((await contarMensagensUsuario(demo.id, demo.liberadoEm)) >= demo.limiteMensagens) {
+      logger.info('demo: teto de mensagens atingido', { clienteId: demo.id })
       return NextResponse.json({ texto: MSG_TETO })
     }
 
@@ -114,8 +114,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   if (!ehAudio && texto.length > LIMITE_CARACTERES) {
     return NextResponse.json({ texto: MSG_LONGA })
   }
-  if ((await contarMensagensUsuario(demo.id)) >= demo.limiteMensagens) {
-    logger.info('demo: teto de mensagens atingido', { demoId: demo.id })
+  if ((await contarMensagensUsuario(demo.id, demo.liberadoEm)) >= demo.limiteMensagens) {
+    logger.info('demo: teto de mensagens atingido', { clienteId: demo.id })
     return NextResponse.json({ texto: MSG_TETO })
   }
 
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   })
 
   await salvarMensagemDemo({
-    demoId: demo.id,
+    clienteId: demo.id,
     sessaoId,
     role: 'USER',
     texto,
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     : undefined
 
   await salvarMensagemDemo({
-    demoId: demo.id,
+    clienteId: demo.id,
     sessaoId,
     role: 'ASSISTANT',
     texto: mensagem,
@@ -171,11 +171,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       ...lead,
       quando: respondidaEm,
     })
-    logger.info('demo: handoff', { demoId: demo.id, sessaoId })
+    logger.info('demo: handoff', { clienteId: demo.id, sessaoId })
   }
 
   logger.info('demo: mensagem', {
-    demoId: demo.id,
+    clienteId: demo.id,
     sessaoId,
     ...infoProvider(),
     bloqueio,

@@ -45,7 +45,7 @@ Retrato factual do código na branch `dev` (atualizado na T9). Só descreve o qu
 |---|---|---|---|
 | Anthropic | `src/lib/ai/anthropic.ts` → `callAnthropic()` | `claude-haiku-4-5` | `max_tokens: 1200`, `temperature: 0.3`, system com `cache_control: ephemeral`, timeout 20s |
 | Gemini | `src/lib/ai/gemini.ts` → `callGemini()` | `gemini-2.5-flash` | `maxOutputTokens: 1200`, `temperature: 0.3`, `responseMimeType: 'application/json'`, timeout 20s (Promise.race) |
-| OpenAI | `src/lib/ai/openai.ts` → `callOpenAI()` | `gpt-5.4-mini` | Modelo de raciocínio (regex `isReasoningModel`): `reasoning_effort: 'low'`, `max_completion_tokens: 4000`. Senão: `temperature: 0.3`, `max_completion_tokens: 1200`. Sempre `response_format: json_object`, timeout 20s por chamada. Única que recebe ferramentas (`tools`): ciclo de até 2 rodadas com ferramenta e uma final sem, tokens somados (T9) |
+| OpenAI | `src/lib/ai/openai.ts` → `callOpenAI()`, via **Responses API** (`/v1/responses`, desde a correção da T9) | `gpt-5.4-mini` | Modelo de raciocínio (regex `isReasoningModel`): `reasoning: { effort: 'low' }`, `max_output_tokens: 4000`. Senão: `temperature: 0.3`, `max_output_tokens: 1200`. Sempre `text.format: json_object`, timeout 20s por chamada. Prompt em `instructions`, histórico e mensagem em `input`. Única que recebe ferramentas (`tools`): ciclo de até 2 rodadas com ferramenta e uma final sem, tokens somados (T9) |
 
 - Roteamento: `src/lib/ai/index.ts` → `chatComplete()`. Qualquer erro → `FALLBACK_RESPONSE`.
 - A saída é sempre JSON validado por Zod (`src/lib/ai/schema.ts` → `AiResponseSchema`) em `src/lib/ai/validate-output.ts` → `validateOutput()`.
@@ -286,7 +286,9 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 
 ## 7. Ferramentas (tools)
 
-- **Ciclo de ferramentas (T9)**: `src/lib/ai/ferramentas.ts` define o formato (`definicoes` + `executar`); `chatComplete()` recebe `ferramentas` e repassa à OpenAI. Em `openai.ts`, se a IA pedir ferramenta, o código executa, devolve o resultado como mensagem `tool` e chama de novo; até 2 rodadas com ferramenta e uma final sem, para obrigar a resposta. Tokens das chamadas são somados; `RegistroResposta.ferramentas` guarda `[{nome, resultado}]`. Base para a T10 (atualizar/cancelar) e a T14 (documentos).
+- **Ciclo de ferramentas (T9)**: `src/lib/ai/ferramentas.ts` define o formato (`definicoes` + `executar`); `chatComplete()` recebe `ferramentas` e repassa à OpenAI. Usa a Responses API porque o `chat.completions` recusa (400) ferramenta junto com `reasoning_effort` nos modelos de raciocínio (ex.: `gpt-6-luna`). Em `openai.ts`, se a IA pedir ferramenta (`function_call`), o código executa, devolve à IA os itens que ela produziu (raciocínio e chamada) mais o `function_call_output` e chama de novo; até 2 rodadas com ferramenta e uma final sem, para obrigar a resposta. Tokens das chamadas são somados; `RegistroResposta.ferramentas` guarda `[{nome, resultado}]`. Base para a T10 (atualizar/cancelar) e a T14 (documentos).
+- **Rede de segurança:** se a OpenAI recusar com 400 uma chamada com ferramenta, o código repete na hora sem ferramenta. O lead recebe resposta, o encaminhamento daquele turno não acontece, `ferramentas` registra `erro_provedor` e fica o evento "Erro do provedor de IA" com `respondeuSemFerramenta: true` e o motivo.
+- O evento "Erro do provedor de IA" traz o motivo dado pelo provedor (`mensagem`, até 300 caracteres).
 - Anthropic e Gemini ignoram as ferramentas.
 - Única ferramenta hoje: `registrar_pedido` (seção 5).
 - A resposta final continua JSON (`AiResponseSchema`): `paragraphs`, `checklist`, `steps`. `suggestBook`, `bookReason` e `lead*` saíram na T9; se a IA ainda mandar, o Zod descarta.

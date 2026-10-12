@@ -83,6 +83,18 @@ export async function chatComplete({
               detalhe: detalheDoContexto(contexto, provider, model),
             })
           : Promise.resolve(),
+      // Resposta saiu, mas sem a ferramenta: o encaminhamento deste turno não aconteceu
+      resultado.ferramentaRecusada
+        ? registrarEvento('ia_erro_provedor', {
+            clienteId: contexto.clienteId,
+            detalhe: {
+              ...detalheDoContexto(contexto, provider, model),
+              status: 400,
+              mensagem: resultado.ferramentaRecusada,
+              respondeuSemFerramenta: true,
+            },
+          })
+        : Promise.resolve(),
     ])
     return saida.resposta
   } catch (err) {
@@ -101,7 +113,12 @@ export async function chatComplete({
       }),
       registrarEvento('ia_erro_provedor', {
         clienteId: contexto.clienteId,
-        detalhe: { ...detalheDoContexto(contexto, provider, model), ...resumoErro(err) },
+        detalhe: {
+          ...detalheDoContexto(contexto, provider, model),
+          ...resumoErro(err),
+          // Motivo dado pelo provedor (ex.: por que recusou com 400). Texto da API, não da conversa
+          mensagem: err instanceof Error ? err.message.slice(0, 300) : null,
+        },
       }),
     ])
     return FALLBACK_RESPONSE

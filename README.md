@@ -38,7 +38,8 @@ O encaminhamento é uma **ferramenta** da IA (`registrar_pedido`), não um campo
 - Os encaminhamentos ficam na tabela `Encaminhamento` e aparecem para a IA nos dados do momento (o que já foi registrado, com horário, e quantos novos hoje).
 - Depois de enviada a resposta, cada encaminhamento registrado vira um e-mail (WhatsApp) ou o card da tela (link de teste). Se o e-mail falhar, a IA já terá dito que encaminhou: fica o evento de falha.
 - O filtro de vazamento só troca o texto da resposta; nunca desfaz um encaminhamento já registrado.
-- **Só OpenAI** (`AI_PROVIDER=openai`): com Anthropic ou Gemini a ferramenta não é oferecida e o robô não encaminha.
+- **Só OpenAI** (`AI_PROVIDER=openai`): com Anthropic ou Gemini a ferramenta não é oferecida e o robô não encaminha. A OpenAI é chamada pela Responses API (`/v1/responses`): o `chat.completions` recusa ferramenta junto com raciocínio.
+- **Rede de segurança:** se a OpenAI recusar a chamada com ferramenta (erro 400), o código responde sem ela. O lead não fica sem resposta, o encaminhamento daquele turno se perde e fica o evento "Erro do provedor de IA" com o motivo.
 - Eventos: `Encaminhamento enviado`, `Encaminhamento recusado por campo faltando`, `Limite diário de encaminhamentos atingido`.
 - Cada encaminhamento custa uma ida e volta a mais à IA (duas chamadas, tokens somados no registro técnico).
 

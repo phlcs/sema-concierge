@@ -25,6 +25,8 @@ export type ResultadoProvedor = {
   uso: UsoIa
   // Ferramentas chamadas no ciclo (só OpenAI, T9)
   ferramentas?: FerramentaChamada[]
+  // Motivo, quando o provedor recusou a chamada com ferramenta e a resposta saiu sem ela
+  ferramentaRecusada?: string
 }
 
 export const USO_VAZIO: UsoIa = {

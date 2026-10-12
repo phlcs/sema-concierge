@@ -4,10 +4,11 @@ import { logger } from '@/lib/logger'
 import type { FerramentaChamada, ResultadoProvedor } from './registro'
 import { MAX_RODADAS_FERRAMENTA, type Ferramentas } from './ferramentas'
 import type {
-  ChatCompletionMessageFunctionToolCall,
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from 'openai/resources/chat/completions'
+  FunctionTool,
+  Response,
+  ResponseFunctionToolCall,
+  ResponseInputItem,
+} from 'openai/resources/responses/responses'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -30,6 +31,13 @@ function somar(a: number | null, b: number | null | undefined): number | null {
   return (a ?? 0) + b
 }
 
+function statusDoErro(err: unknown): number | null {
+  const status = (err as { status?: unknown })?.status
+  return typeof status === 'number' ? status : null
+}
+
+// Responses API (/v1/responses): é a única forma em que os modelos de raciocínio
+// aceitam ferramenta junto com reasoning (o chat.completions recusa com 400).
 export async function callOpenAI(
   apiKey: string,
   model: string,
@@ -41,70 +49,95 @@ export async function callOpenAI(
 ): Promise<ResultadoProvedor> {
   const client = getClient(apiKey)
 
-  const messages: ChatCompletionMessageParam[] = [
-    // Parte fixa primeiro: o cache automático da OpenAI reaproveita o prefixo idêntico
-    { role: 'system', content: [systemPrompt, systemPromptMomento].filter(Boolean).join('\n\n') },
+  // Parte fixa primeiro: o cache automático da OpenAI reaproveita o prefixo idêntico
+  const instructions = [systemPrompt, systemPromptMomento].filter(Boolean).join('\n\n')
+  const input: ResponseInputItem[] = [
     ...history.map((h) => ({ role: h.role, content: h.content })),
     { role: 'user' as const, content: userMessage },
   ]
-  const tools: ChatCompletionTool[] = (ferramentas?.definicoes ?? []).map((f) => ({
+  const tools: FunctionTool[] = (ferramentas?.definicoes ?? []).map((f) => ({
     type: 'function' as const,
-    function: { name: f.nome, description: f.descricao, parameters: f.parametros },
+    name: f.nome,
+    description: f.descricao,
+    parameters: f.parametros,
+    strict: false,
   }))
 
   const uso = { tokensEntrada: null as number | null, tokensSaida: null as number | null, tokensCache: null as number | null }
   const chamadas: FerramentaChamada[] = []
+  let ferramentasRecusadas = false
+  let motivoRecusa: string | undefined
   let raw = ''
+
+  const chamar = (comFerramentas: boolean): Promise<Response> =>
+    client.responses.create(
+      {
+        model,
+        instructions,
+        input,
+        ...(isReasoningModel(model)
+          ? { reasoning: { effort: 'low' as const }, max_output_tokens: 4000 }
+          : { temperature: 0.3, max_output_tokens: 1200 }),
+        text: { format: { type: 'json_object' } },
+        ...(comFerramentas ? { tools } : {}),
+      },
+      { timeout: 20000 }
+    )
 
   // Ciclo de ferramentas (T9): a IA pode chamar uma ferramenta, recebe o resultado
   // e só então escreve a resposta. Na última rodada as ferramentas saem, para
   // obrigar a resposta final.
   for (let rodada = 0; rodada <= MAX_RODADAS_FERRAMENTA; rodada++) {
-    const comFerramentas = tools.length > 0 && rodada < MAX_RODADAS_FERRAMENTA
-    const response = await client.chat.completions.create(
-      {
+    let comFerramentas = tools.length > 0 && !ferramentasRecusadas && rodada < MAX_RODADAS_FERRAMENTA
+    let response: Response
+    try {
+      response = await chamar(comFerramentas)
+    } catch (err) {
+      // Rede de segurança: se a OpenAI recusar a chamada com ferramenta, responde sem
+      // ela. O lead nunca fica sem resposta; o encaminhamento deste turno se perde.
+      if (!comFerramentas || statusDoErro(err) !== 400) throw err
+      motivoRecusa = err instanceof Error ? err.message.slice(0, 300) : String(err)
+      logger.warn('openai: chamada com ferramenta recusada, repetindo sem ferramenta', {
         model,
-        ...(isReasoningModel(model)
-          ? { reasoning_effort: 'low' as const, max_completion_tokens: 4000 }
-          : { temperature: 0.3, max_completion_tokens: 1200 }),
-        response_format: { type: 'json_object' },
-        ...(comFerramentas ? { tools } : {}),
-        messages,
-      },
-      { timeout: 20000 }
-    )
+        erro: motivoRecusa,
+      })
+      ferramentasRecusadas = true
+      comFerramentas = false
+      for (const t of tools) chamadas.push({ nome: t.name, resultado: 'erro_provedor' })
+      response = await chamar(false)
+    }
 
     logger.info('openai: uso de tokens', {
       model,
       rodada,
-      promptTokens: response.usage?.prompt_tokens ?? null,
-      cachedTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? null,
-      completionTokens: response.usage?.completion_tokens ?? null,
+      promptTokens: response.usage?.input_tokens ?? null,
+      cachedTokens: response.usage?.input_tokens_details?.cached_tokens ?? null,
+      completionTokens: response.usage?.output_tokens ?? null,
     })
-    uso.tokensEntrada = somar(uso.tokensEntrada, response.usage?.prompt_tokens)
-    uso.tokensSaida = somar(uso.tokensSaida, response.usage?.completion_tokens)
-    uso.tokensCache = somar(uso.tokensCache, response.usage?.prompt_tokens_details?.cached_tokens)
+    uso.tokensEntrada = somar(uso.tokensEntrada, response.usage?.input_tokens)
+    uso.tokensSaida = somar(uso.tokensSaida, response.usage?.output_tokens)
+    uso.tokensCache = somar(uso.tokensCache, response.usage?.input_tokens_details?.cached_tokens)
 
-    const mensagem = response.choices[0]?.message
-    const pedidas = (mensagem?.tool_calls ?? []).filter(
-      (c): c is ChatCompletionMessageFunctionToolCall => c.type === 'function'
+    const pedidas = response.output.filter(
+      (item): item is ResponseFunctionToolCall => item.type === 'function_call'
     )
     if (!comFerramentas || !ferramentas || pedidas.length === 0) {
-      raw = mensagem?.content ?? ''
+      raw = response.output_text ?? ''
       break
     }
 
-    messages.push({ role: 'assistant', content: mensagem?.content ?? null, tool_calls: pedidas })
+    // Devolve à IA tudo o que ela produziu (raciocínio e chamadas) e o resultado de cada chamada
+    input.push(...(response.output as ResponseInputItem[]))
     for (const pedida of pedidas) {
       let args: unknown = null
       try {
-        args = JSON.parse(pedida.function.arguments || '{}')
+        args = JSON.parse(pedida.arguments || '{}')
       } catch {
         args = null
       }
-      const resultado = await ferramentas.executar(pedida.function.name, args)
-      chamadas.push({ nome: pedida.function.name, resultado })
-      messages.push({ role: 'tool', tool_call_id: pedida.id, content: resultado })
+      const resultado = await ferramentas.executar(pedida.name, args)
+      chamadas.push({ nome: pedida.name, resultado })
+      input.push({ type: 'function_call_output', call_id: pedida.call_id, output: resultado })
     }
   }
 
@@ -112,5 +145,6 @@ export async function callOpenAI(
     saida: validarSaida(raw),
     uso: { ...uso, tokensCacheEscrita: null },
     ferramentas: chamadas,
+    ...(motivoRecusa ? { ferramentaRecusada: motivoRecusa } : {}),
   }
 }

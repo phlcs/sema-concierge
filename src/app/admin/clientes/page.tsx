@@ -52,7 +52,7 @@ export default async function ClientesPage() {
         </span>
         <LogoutButton />
       </div>
-      <div className="shell">
+      <div className="shell shell-wide">
         <p className="muted breadcrumb">
           <Link href="/admin">← Voltar</Link>
         </p>

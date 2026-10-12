@@ -221,6 +221,9 @@
 .sema-admin .table-card {
   padding: 0;
   overflow: hidden;
+  /* Tabela larga (ex.: clientes com a coluna do link de teste): rola de lado em
+     vez de cortar as últimas colunas */
+  overflow-x: auto;
 }
 
 .sema-admin .clientes-table {

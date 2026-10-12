@@ -6,7 +6,6 @@ import {
   FRASE_AUDIO_LONGO,
   FRASE_MIDIA,
   MAINTENANCE_RESPONSE,
-  type AiResponse,
 } from '@/lib/ai/schema'
 import { renderResposta, responderMensagem, type MensagemEntrada } from '@/lib/atendimento/motor'
 import { normalizarNumero } from '@/lib/whatsapp/phone'
@@ -27,8 +26,11 @@ import { resend, resendModo } from '@/lib/integrations/resend'
 import { registrarEvento, resumoErro } from '@/lib/eventos'
 import type { ContextoRegistro } from '@/lib/ai/registro'
 import { precisaRevisar } from '@/lib/qa/keywords'
-
-const HANDOFF_COOLDOWN_MS = 24 * 60 * 60 * 1000
+import {
+  nomeDoPedido,
+  portaWhatsapp,
+  type NovoEncaminhamento,
+} from '@/lib/atendimento/encaminhamento'
 
 // Evento de assinatura recusada: no máximo 1 por minuto por processo, para que uma
 // enxurrada de chamadas falsas ao webhook não encha a tabela (o log registra todas)
@@ -334,8 +336,12 @@ async function tratarTurno(args: {
     origemAnuncio,
     carregarHistorico: () => carregarHistorico(conversaId),
     contexto: contextoWhatsapp(cliente.id, conversaId),
+    encaminhamento: {
+      camposPedido: cliente.camposPedido,
+      porta: portaWhatsapp(cliente.id, conversaId),
+    },
   })
-  const { aiResponse, bloqueio } = resultado
+  const { bloqueio, encaminhamentos } = resultado
   if (bloqueio) {
     // Só um trecho vai pro log (pra auditar o que é bloqueado); o texto não é gravado
     logger.warn('webhook: entrada bloqueada por validateInput', {
@@ -381,55 +387,41 @@ async function tratarTurno(args: {
     })
   }
 
-  try {
-    await dispararHandoffSeNecessario({
-      aiResponse,
-      conversaId,
-      cliente,
-      numeroContato,
-    })
-  } catch (err) {
-    logger.error('webhook: erro no handoff por email', {
-      erro: err instanceof Error ? err.message : String(err),
-    })
-    await registrarEvento('encaminhamento_falha_email', {
-      clienteId: cliente.id,
-      detalhe: { conversaId, ...resumoErro(err) },
-    })
+  // E-mail de cada encaminhamento registrado pela ferramenta neste turno (T9). A
+  // resposta ao lead já saiu: se o e-mail falhar, fica o evento de erro.
+  for (const encaminhamento of encaminhamentos) {
+    try {
+      await enviarEncaminhamento({ encaminhamento, conversaId, cliente, numeroContato })
+    } catch (err) {
+      logger.error('webhook: erro no handoff por email', {
+        erro: err instanceof Error ? err.message : String(err),
+      })
+      await registrarEvento('encaminhamento_falha_email', {
+        clienteId: cliente.id,
+        detalhe: { conversaId, ...resumoErro(err) },
+      })
+    }
   }
 }
 
-async function dispararHandoffSeNecessario(args: {
-  aiResponse: AiResponse
+async function enviarEncaminhamento(args: {
+  encaminhamento: NovoEncaminhamento
   conversaId: string
   cliente: { id: string; nomeNegocio: string; emailPrestador: string }
   numeroContato: string
 }): Promise<void> {
-  const { aiResponse, conversaId, cliente, numeroContato } = args
-  if (aiResponse.suggestBook !== true) return
-
-  const conversa = await prisma.whatsappConversation.findUnique({
-    where: { id: conversaId },
-    select: { handoffEm: true },
-  })
-
+  const { encaminhamento, conversaId, cliente, numeroContato } = args
   const agora = new Date()
-  const ultimo = conversa?.handoffEm ?? null
-  if (ultimo && agora.getTime() - ultimo.getTime() < HANDOFF_COOLDOWN_MS) {
-    logger.info('handoff pulado (dentro de 24h)', {
-      conversaId,
-      ultimoHandoffEm: ultimo.toISOString(),
-    })
-    return
-  }
+  const leadNome = nomeDoPedido(encaminhamento.campos)
 
   const result = await resend.enviarHandoff({
     emailPrestador: cliente.emailPrestador,
     nomeNegocio: cliente.nomeNegocio,
-    leadNome: aiResponse.leadNome ?? null,
+    leadNome,
     leadContato: numeroContato,
-    leadIntencao: aiResponse.leadIntencao ?? null,
-    leadResumo: aiResponse.leadResumo ?? null,
+    leadIntencao: encaminhamento.intencao,
+    leadResumo: encaminhamento.resumo,
+    campos: encaminhamento.campos,
     quando: agora,
   })
 
@@ -442,10 +434,11 @@ async function dispararHandoffSeNecessario(args: {
       conversaId,
       emailId: result.id,
       emailPrestador: cliente.emailPrestador,
-      leadNome: aiResponse.leadNome ?? null,
+      leadNome,
       leadContato: numeroContato,
-      leadIntencao: aiResponse.leadIntencao ?? null,
-      leadResumo: aiResponse.leadResumo ?? null,
+      leadIntencao: encaminhamento.intencao,
+      leadResumo: encaminhamento.resumo,
+      campos: encaminhamento.campos,
     })
     // O e-mail do prestador e os dados do lead ficam só no log; o evento leva ids
     await registrarEvento(resendModo === 'real' ? 'encaminhamento_enviado' : 'encaminhamento_mock', {

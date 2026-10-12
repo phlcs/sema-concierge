@@ -6,9 +6,9 @@ import { FRASE_AUDIO_LONGO, FRASE_MIDIA } from '@/lib/ai/schema'
 import { LIMITE_AUDIO_BYTES, transcreverBuffer } from '@/lib/whatsapp/audio'
 import { carregarDemoParaConversa } from '@/lib/demo/acesso'
 import { montarCardHandoff, type CardHandoff } from '@/lib/demo/handoff'
+import { nomeDoPedido, portaTeste } from '@/lib/atendimento/encaminhamento'
 import {
   LIMITE_CARACTERES,
-  buscarHandoffSessao,
   MSG_LONGA,
   MSG_TETO,
   carregarHistoricoDemo,
@@ -123,13 +123,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const recebidaEm = new Date()
   const ehPrimeiraMensagem = (await contarMensagensSessao(demo.id, sessaoId)) === 0
 
-  const { mensagem, aiResponse, bloqueio } = await responderMensagem({
+  const { mensagem, bloqueio, encaminhamentos } = await responderMensagem({
     cerebro: demo.cerebro,
     mensagens: [transcricao ? { texto, deAudio: true as const } : texto],
     ehPrimeiraMensagem,
     origemAnuncio: false,
     carregarHistorico: () => carregarHistoricoDemo(demo.id, sessaoId),
     contexto,
+    encaminhamento: { camposPedido: demo.camposPedido, porta: portaTeste(demo.id, sessaoId) },
   })
 
   await salvarMensagemDemo({
@@ -140,18 +141,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     createdAt: recebidaEm,
   })
 
-  // Handoff: nenhum email é enviado. Máximo 1 por sessão; o card vai pra tela.
+  // Encaminhamento: nenhum email é enviado; o card do último registrado no turno vai
+  // pra tela. O limite (3 novos por dia) é o mesmo do WhatsApp, conferido pela ferramenta.
   const respondidaEm = new Date(Math.max(Date.now(), recebidaEm.getTime() + 1))
   let handoff: CardHandoff | null = null
-  const querHandoff =
-    aiResponse.suggestBook === true &&
-    !bloqueio &&
-    !(await buscarHandoffSessao(demo.id, sessaoId))
-  const lead = querHandoff
+  const registrado = encaminhamentos.at(-1)
+  const lead = registrado
     ? {
-        leadNome: aiResponse.leadNome ?? null,
-        leadIntencao: aiResponse.leadIntencao ?? null,
-        leadResumo: aiResponse.leadResumo ?? null,
+        leadNome: nomeDoPedido(registrado.campos),
+        leadIntencao: registrado.intencao,
+        leadResumo: registrado.resumo,
       }
     : undefined
 
@@ -169,6 +168,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       emailExibicao: demo.emailExibicao,
       nomeNegocio: demo.nomeNegocio,
       ...lead,
+      campos: registrado?.campos ?? [],
       quando: respondidaEm,
     })
     logger.info('demo: handoff', { clienteId: demo.id, sessaoId })

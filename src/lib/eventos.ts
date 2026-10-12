@@ -9,8 +9,7 @@ export const GRAVIDADES: Gravidade[] = ['Erro', 'Aviso', 'Informativo']
 
 // Catálogo da T5. Tema, nome e gravidade vivem aqui, num lugar só: quem registra
 // só diz a chave. Eventos de funções ainda não construídas (busca em documentos,
-// resumo de conversa, limite diário e recusa da ferramenta de encaminhamento)
-// entram neste catálogo quando a função existir.
+// resumo de conversa) entram neste catálogo quando a função existir.
 const CATALOGO = {
   webhook_erro_geral: { tema: 'Recebimento', evento: 'Erro geral do webhook', gravidade: 'Erro' },
   webhook_assinatura_recusada: {
@@ -62,6 +61,16 @@ const CATALOGO = {
     tema: 'Encaminhamento',
     evento: 'Encaminhamento enviado',
     gravidade: 'Informativo',
+  },
+  encaminhamento_recusado_campo: {
+    tema: 'Encaminhamento',
+    evento: 'Encaminhamento recusado por campo faltando',
+    gravidade: 'Aviso',
+  },
+  encaminhamento_limite_atingido: {
+    tema: 'Encaminhamento',
+    evento: 'Limite diário de encaminhamentos atingido',
+    gravidade: 'Aviso',
   },
   encaminhamento_mock: {
     tema: 'Encaminhamento',

@@ -44,18 +44,20 @@ model Cliente {
   updatedAt             DateTime               @updatedAt
   conversas             WhatsappConversation[]
   mensagensTeste        DemoMensagem[]
+  encaminhamentos       Encaminhamento[]
 }
 
 model WhatsappConversation {
-  id            String            @id @default(cuid())
-  clienteId     String
-  numeroContato String
-  handoffEm     DateTime?
-  revisar       Boolean           @default(false)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  cliente       Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  mensagens     WhatsappMessage[]
+  id              String            @id @default(cuid())
+  clienteId       String
+  numeroContato   String
+  handoffEm       DateTime?
+  revisar         Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  cliente         Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  mensagens       WhatsappMessage[]
+  encaminhamentos Encaminhamento[]
 
   @@unique([clienteId, numeroContato])
 }
@@ -69,6 +71,26 @@ model WhatsappMessage {
   conversation   WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+
+// Encaminhamentos registrados pela ferramenta registrar_pedido (T9). Servem ao
+// limite de 3 novos por dia por conversa e ao estado mostrado à IA. WhatsApp
+// grava conversaId; o link de teste grava sessaoId. A bateria não grava.
+model Encaminhamento {
+  id         String                @id @default(cuid())
+  clienteId  String
+  conversaId String?
+  sessaoId   String?
+  // [{ nome, valor }], na ordem do cadastro
+  campos     Json
+  intencao   String?
+  resumo     String?
+  createdAt  DateTime              @default(now())
+  cliente    Cliente               @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  conversa   WhatsappConversation? @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+
+  @@index([conversaId, createdAt])
+  @@index([clienteId, sessaoId, createdAt])
 }
 
 // Tabela antiga de demos (T7): cada demo virou um Cliente "prospect" com o mesmo

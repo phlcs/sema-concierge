@@ -22,6 +22,7 @@ export const resendMock: ResendAdapter = {
       leadContato: input.leadContato,
       leadIntencao: input.leadIntencao,
       leadResumo: input.leadResumo,
+      campos: input.campos,
       quando: input.quando.toISOString(),
     })
     return { id, success: true }

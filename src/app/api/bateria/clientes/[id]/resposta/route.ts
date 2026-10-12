@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger'
 import { getAiConfig } from '@/lib/ai/config'
 import { VERSAO_PROMPT } from '@/lib/ai/build-prestador-prompt'
 import { responderMensagem } from '@/lib/atendimento/motor'
+import { nomeDoPedido, portaMemoria } from '@/lib/atendimento/encaminhamento'
 import { LIMITE_HISTORICO } from '@/lib/whatsapp/conversa'
 import type { ContextoRegistro } from '@/lib/ai/registro'
 import { bateriaAutorizada, naoEncontrado } from '@/lib/bateria/acesso'
@@ -25,6 +26,19 @@ const Corpo = z.object({
     )
     .max(200),
   mensagem: z.string().min(1).max(4000),
+  // Encaminhamentos das rodadas anteriores da conversa simulada (T9). Nada vai
+  // para o banco: o script guarda e reenvia, para a IA ver o estado e o limite valer.
+  encaminhamentos: z
+    .array(
+      z.object({
+        campos: z.array(z.object({ nome: z.string().max(80), valor: z.string().max(300) })).max(30),
+        intencao: z.string().max(300).nullable(),
+        resumo: z.string().max(1000).nullable(),
+        em: z.iso.datetime(),
+      }),
+    )
+    .max(20)
+    .default([]),
 })
 
 function infoProvedor(): { provedor: string | null; modelo: string | null } {
@@ -53,7 +67,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const cliente = await prisma.cliente.findUnique({
     where: { id },
-    select: { id: true, cerebro: true },
+    select: { id: true, cerebro: true, camposPedido: true },
   })
   if (!cliente) return naoEncontrado()
 
@@ -64,24 +78,34 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     content: m.texto,
   }))
 
-  const { mensagem, aiResponse, bloqueio } = await responderMensagem({
+  const anteriores = corpo.encaminhamentos.map((e) => ({
+    campos: e.campos,
+    intencao: e.intencao,
+    resumo: e.resumo,
+    createdAt: new Date(e.em),
+  }))
+  const { mensagem, bloqueio, encaminhamentos, resultadosFerramenta } = await responderMensagem({
     cerebro: cliente.cerebro,
     mensagens: [corpo.mensagem.trim()],
     ehPrimeiraMensagem: corpo.historico.length === 0,
     origemAnuncio: false,
     carregarHistorico: async () => historico,
     contexto,
+    encaminhamento: { camposPedido: cliente.camposPedido, porta: portaMemoria(anteriores) },
   })
+  const registrado = encaminhamentos.at(-1) ?? null
 
   logger.info('bateria: resposta', { clienteId: cliente.id, bloqueio })
 
   return NextResponse.json({
     texto: mensagem,
-    encaminhou: aiResponse.suggestBook === true && !bloqueio,
-    motivo: aiResponse.bookReason ?? null,
-    leadNome: aiResponse.leadNome ?? null,
-    leadIntencao: aiResponse.leadIntencao ?? null,
-    leadResumo: aiResponse.leadResumo ?? null,
+    encaminhou: registrado !== null,
+    // Resultado das chamadas da ferramenta no turno ("registrado", "faltando: data"...)
+    motivo: resultadosFerramenta.join('; ') || null,
+    leadNome: registrado ? nomeDoPedido(registrado.campos) : null,
+    leadIntencao: registrado?.intencao ?? null,
+    leadResumo: registrado?.resumo ?? null,
+    campos: registrado?.campos ?? null,
     bloqueio,
     ...infoProvedor(),
     versaoPrompt: VERSAO_PROMPT,

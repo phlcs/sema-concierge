@@ -45,6 +45,7 @@ function montarHtml(input: HandoffInput): string {
                   ${linha('Nome', c.nome, true)}
                   ${linha('Contato', c.contato)}
                   ${linha('O que quer', c.intencao)}
+                  ${input.campos.map((campo) => linha(campo.nome, campo.valor)).join('')}
                   ${linha('Resumo', c.resumo)}
                   ${linha('Quando', c.quando)}
                 </table>
@@ -66,6 +67,7 @@ function montarTexto(input: HandoffInput): string {
     `Nome: ${c.nome}`,
     `Contato: ${c.contato}`,
     `O que quer: ${c.intencao}`,
+    ...input.campos.map((campo) => `${campo.nome}: ${campo.valor}`),
     `Resumo: ${c.resumo}`,
     `Quando: ${c.quando}`,
   ].join('\n')

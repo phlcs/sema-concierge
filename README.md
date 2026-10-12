@@ -26,7 +26,22 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens, monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
 7. A mensagem do contato e a resposta são gravadas e a resposta é enviada pela Graph API (`enviarTexto`).
 8. Palavras-chave sensíveis marcam a conversa para revisão (`revisar`).
-9. Se a IA sinalizar `suggestBook`, o handoff é enviado por e-mail ao prestador, com cooldown de 24h por conversa.
+9. Cada encaminhamento registrado pela ferramenta no turno vira um e-mail ao prestador (ver "Encaminhamento" abaixo).
+
+## Encaminhamento (T9)
+
+O encaminhamento é uma **ferramenta** da IA (`registrar_pedido`), não um campo da resposta. O código decide primeiro; a IA escreve depois, já sabendo o resultado.
+
+- A IA chama a ferramenta com os campos do pedido do cliente (lista do cadastro, T8), uma intenção e um resumo. Cliente sem lista de campos: só o nome é obrigatório.
+- O código confere os campos obrigatórios e o limite do dia e devolve `registrado`, `faltando: X` ou `limite atingido`. Só então a IA responde ao lead. Formato do campo (data válida, número) ainda não é conferido; data vaga fica vazia por instrução da ferramenta.
+- **Limite:** até 3 encaminhamentos novos por dia por conversa, no dia do calendário de Brasília; à meia-noite libera mais 3. Substitui o antigo bloqueio de 24h. Vale no WhatsApp, no link de teste e na bateria.
+- Os encaminhamentos ficam na tabela `Encaminhamento` e aparecem para a IA nos dados do momento (o que já foi registrado, com horário, e quantos novos hoje).
+- Depois de enviada a resposta, cada encaminhamento registrado vira um e-mail (WhatsApp) ou o card da tela (link de teste). Se o e-mail falhar, a IA já terá dito que encaminhou: fica o evento de falha.
+- O filtro de vazamento só troca o texto da resposta; nunca desfaz um encaminhamento já registrado.
+- **Só OpenAI** (`AI_PROVIDER=openai`): com Anthropic ou Gemini a ferramenta não é oferecida e o robô não encaminha. A OpenAI é chamada pela Responses API (`/v1/responses`): o `chat.completions` recusa ferramenta junto com raciocínio.
+- **Rede de segurança:** se a OpenAI recusar a chamada com ferramenta (erro 400), o código responde sem ela. O lead não fica sem resposta, o encaminhamento daquele turno se perde e fica o evento "Erro do provedor de IA" com o motivo.
+- Eventos: `Encaminhamento enviado`, `Encaminhamento recusado por campo faltando`, `Limite diário de encaminhamentos atingido`.
+- Cada encaminhamento custa uma ida e volta a mais à IA (duas chamadas, tokens somados no registro técnico).
 
 ## Rotas
 
@@ -80,8 +95,8 @@ Modelo em [`.env.example`](./.env.example).
 
 ## Observabilidade
 
-- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos, resumo de conversa, limite diário de encaminhamentos, recusa da ferramenta de encaminhamento) entram no catálogo quando a função existir.
-- **Registro técnico por chamada de IA** (`RegistroResposta`, sem tela por enquanto): modelo, versão do prompt (`VERSAO_PROMPT` em `build-prestador-prompt.ts`: mude junto com qualquer alteração de prompt), tokens de entrada/saída/cache, tempo, ferramentas, custo estimado, origem (`whatsapp`, `teste`, `bateria`) e função (`resposta`, `busca_documentos`, `resumo`, `transcricao`). Os preços ficam em `src/lib/ai/precos.ts`.
+- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos, resumo de conversa) entram no catálogo quando a função existir.
+- **Registro técnico por chamada de IA** (`RegistroResposta`, sem tela por enquanto): modelo, versão do prompt (`VERSAO_PROMPT` em `build-prestador-prompt.ts`: mude junto com qualquer alteração de prompt), tokens de entrada/saída/cache, tempo, ferramentas chamadas (nome e resultado), custo estimado, origem (`whatsapp`, `teste`, `bateria`) e função (`resposta`, `busca_documentos`, `resumo`, `transcricao`). Os preços ficam em `src/lib/ai/precos.ts`.
 - **Interruptor geral** (tela `/admin/clientes`): coloca todos os clientes ativos em manutenção, pedindo a senha do painel. "Voltar ao normal" reativa só os clientes que o próprio interruptor colocou; o botão de cada cliente manda mais: quem já estava em manutenção continua, e quem teve o botão mexido à mão sai da lista do interruptor.
 
 ## Áudio
@@ -113,12 +128,12 @@ A tela tem, numa página só:
 
 - **Nome do negócio** e **modo** (conversão, hospitalidade ou resolução).
 - **Cérebro** em JSON. Só os nomes das chaves são conferidos: chave fora da lista (`src/lib/cerebro/chaves.ts`, as 12 que o prompt lê hoje) é recusada com o nome dela. Sem checagem de tipo nem de campo vazio. Quando o formato do cérebro mudar (T12/T13), a lista muda junto.
-- **Campos do pedido**: nome + obrigatório, na ordem do e-mail.
+- **Campos do pedido**: nome + obrigatório, na ordem do e-mail. Usados pela ferramenta de encaminhamento (T9).
 - **E-mail que recebe os encaminhamentos**, **remetente** (vazio = "Concierge [nome do negócio]") e **destino** (só e-mail por enquanto).
 - **Canais de fallback**: o principal é obrigatório; SAC, RH, compras, imprensa/parcerias e contato rápido são opcionais. Cada um com tipo (e-mail, telefone, WhatsApp, outro) e contato.
 - **WhatsApp** (opcional): ID do número na Meta, ID da conta e número exibido no link de teste. Cliente ativo não pode ficar sem o ID do número.
 
-Modo, campos do pedido, remetente, destino e fallback ficam gravados mas **ainda não mudam o atendimento**: entram na T9 (campos do pedido), T10 (remetente e destino) e T12 (modo e fallback).
+Os campos do pedido já valem no atendimento (T9). Modo, remetente, destino e fallback ficam gravados mas **ainda não mudam o atendimento**: entram na T10 (remetente e destino) e T12 (modo e fallback).
 
 ## Bateria de personas
 
@@ -149,6 +164,7 @@ Teste automatizado do atendimento (T6), sob demanda. Uma IA faz o papel do clien
   - pedir o nome de quem não é lead (situações 5, 9 e 13);
   - prompt injection: vazar pedaço das instruções internas (situação 11) ou levar para o card o texto que o cliente ditou (situação 12);
   - o que o atendente nunca pode dizer naquele cliente.
+  - O card avaliado é o do primeiro encaminhamento; os seguintes aparecem no turno como "registrou outro encaminhamento", e o resultado da ferramenta ("faltando: data", "limite atingido") aparece em cada turno. O roteiro reenvia à porta os encaminhamentos já feitos, para a IA ver o estado e o limite valer; nada é gravado no banco.
   - O resto (se o card trouxe os dados que o pedido precisa, tom, se respondeu de frente) fica na leitura crítica.
 - **Cliente simulado conferido:** mensagem com marcação técnica ou comentário de bastidor (ex.: `<invoke>`, "segue a próxima mensagem") é descartada e pedida de novo, até 3 tentativas. Se as 3 falharem, a conversa termina com a falha `execucao` e o atendente nunca recebe esse texto. O modelo atual não aceita `temperature`, então as frases variam entre rodadas: compare por situação, não por frase.
 - **Variáveis no ambiente do Claude Code** (não no Railway):

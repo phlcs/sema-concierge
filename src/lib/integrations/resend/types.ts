@@ -12,6 +12,8 @@ export type HandoffInput = {
   leadContato: string
   leadIntencao: string | null
   leadResumo: string | null
+  // Campos do pedido (T9), na ordem do cadastro. Formato novo do e-mail fica para a T10.
+  campos: { nome: string; valor: string }[]
   quando: Date
 }
 

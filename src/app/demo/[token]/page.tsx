@@ -55,6 +55,7 @@ export default async function DemoPage({ params }: { params: Promise<{ token: st
         leadNome: salvo.leadNome,
         leadIntencao: salvo.leadIntencao,
         leadResumo: salvo.leadResumo,
+        campos: salvo.campos,
         quando: salvo.createdAt,
       })
     : null

@@ -11,12 +11,9 @@ export const AiResponseSchema = z.object({
       })
     )
     .nullish(),
-  suggestBook: z.boolean(),
-  bookReason: z.string().nullish(),
-  leadNome: z.string().nullish(),
-  leadIntencao: z.string().nullish(),
-  leadResumo: z.string().nullish(),
 })
+// O encaminhamento saiu da resposta (T9): agora é a ferramenta registrar_pedido.
+// Campos antigos que a IA ainda mande são descartados pelo Zod.
 
 export type AiResponse = z.infer<typeof AiResponseSchema>
 
@@ -24,11 +21,6 @@ export const FALLBACK_RESPONSE: AiResponse = {
   paragraphs: ['Tive uma instabilidade aqui, pode mandar a mensagem de novo?'],
   checklist: null,
   steps: null,
-  suggestBook: false,
-  bookReason: null,
-  leadNome: null,
-  leadIntencao: null,
-  leadResumo: null,
 }
 
 export const MAINTENANCE_RESPONSE: AiResponse = {
@@ -37,11 +29,6 @@ export const MAINTENANCE_RESPONSE: AiResponse = {
   ],
   checklist: null,
   steps: null,
-  suggestBook: false,
-  bookReason: null,
-  leadNome: null,
-  leadIntencao: null,
-  leadResumo: null,
 }
 
 // Frase fixa para imagem, documento e vídeo, e para áudio que não deu para transcrever.
@@ -59,11 +46,6 @@ export const LEAK_RESPONSE: AiResponse = {
   ],
   checklist: null,
   steps: null,
-  suggestBook: false,
-  bookReason: null,
-  leadNome: null,
-  leadIntencao: null,
-  leadResumo: null,
 }
 
 export const BLOCKED_RESPONSE: AiResponse = {
@@ -72,9 +54,4 @@ export const BLOCKED_RESPONSE: AiResponse = {
   ],
   checklist: null,
   steps: null,
-  suggestBook: false,
-  bookReason: null,
-  leadNome: null,
-  leadIntencao: null,
-  leadResumo: null,
 }

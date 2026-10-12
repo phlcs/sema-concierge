@@ -291,8 +291,7 @@ class Simulador {
       {
         model: this.modelo,
         max_tokens: 400,
-        // Mais baixa para variar menos entre rodadas
-        temperature: 0.5,
+        // Sem temperature: os modelos atuais não aceitam mais o parâmetro
         system: this.prompt(cena, maxTurnos),
         messages: mensagens,
       },

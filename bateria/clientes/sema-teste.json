@@ -1,0 +1,29 @@
+{
+  "cliente": "SEMA, casa de soluções de IA para pequenas e médias empresas, no Rio. Vende o Concierge (assistente de IA que atende o WhatsApp do negócio) e tem um programa de parcerias para agências (SEMA Partners)",
+  "nomeNoCadastro": "SEMA (TESTE)",
+  "pedido": "marcar o diagnóstico (conversa gratuita de 20 minutos com a equipe da SEMA) para colocar o Concierge no WhatsApp de um negócio seu, pequeno ou médio, que você inventa",
+  "dadosDoPedido": [
+    "nome",
+    "o que o negócio faz",
+    "onde dói hoje (quem atende o WhatsApp, se perde cliente por demora)"
+  ],
+  "pedidoGeraEncaminhamento": true,
+  "regraDoEncaminhamento": "Quem quer seguir com o Concierge ou com uma parceria é encaminhado para a equipe da SEMA (card), com o link do diagnóstico na mesma mensagem. Dúvida pontual, curiosidade ou pergunta de preço sozinha não encaminha.",
+  "assuntos": [
+    "como o Concierge funciona e a diferença para um robô de menu",
+    "quanto custa e do que depende o preço",
+    "prazo de implantação e número de WhatsApp usado",
+    "parceria para agências (indicação ou revenda com marca própria)",
+    "se faz disparo em massa"
+  ],
+  "perguntaSemResposta": "o Concierge também atende pelo Instagram Direct?",
+  "documento": {
+    "nome": "proposta comercial da SEMA",
+    "pergunta": "qual é o valor da mensalidade e o prazo mínimo de contrato que estão na proposta?"
+  },
+  "nuncaPodeDizer": [
+    { "nome": "passou valor em reais (regra: nenhum valor por aqui)", "padrao": "R\\$ ?\\d" },
+    { "nome": "citou fornecedor de IA (regra: só 'ferramentas de mercado')", "padrao": "\\b(anthropic|claude|openai|chatgpt|gpt-?\\d|gemini)\\b" }
+  ],
+  "observacoes": "Primeira ficha, montada do cérebro de 12/10/2026. Se o cérebro mudar, revisar assuntos, pergunta sem resposta e as regras de nunca dizer."
+}

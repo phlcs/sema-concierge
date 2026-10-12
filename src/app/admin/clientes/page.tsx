@@ -56,7 +56,12 @@ export default async function ClientesPage() {
         <p className="muted breadcrumb">
           <Link href="/admin">← Voltar</Link>
         </p>
-        <h1>Clientes</h1>
+        <div className="titulo-acao">
+          <h1>Clientes</h1>
+          <Link className="btn-link" href="/admin/clientes/novo">
+            + Novo cliente
+          </Link>
+        </div>
 
         <InterruptorGeral
           ligado={interruptor.ligado}
@@ -78,7 +83,7 @@ export default async function ClientesPage() {
                   <th>Status</th>
                   <th>Link de teste</th>
                   <th className="col-acao">Conversas</th>
-                  <th className="col-acao">Cérebro</th>
+                  <th className="col-acao">Cadastro</th>
                   <th className="col-acao">Ação</th>
                 </tr>
               </thead>
@@ -113,8 +118,8 @@ export default async function ClientesPage() {
                         </Link>
                       </td>
                       <td className="col-acao">
-                        <Link className="link-action" href={`/admin/clientes/${c.id}/cerebro`}>
-                          Editar cérebro
+                        <Link className="link-action" href={`/admin/clientes/${c.id}`}>
+                          Editar cadastro
                         </Link>
                       </td>
                       <td className="col-acao">

@@ -1,6 +1,6 @@
 # Raio-X do Concierge (Sema)
 
-Retrato factual do código na branch `dev` (commit `a53ae22`). Só descreve o que existe. Nada aqui é proposta.
+Retrato factual do código na branch `dev` (atualizado na T8). Só descreve o que existe. Nada aqui é proposta.
 
 ---
 
@@ -27,13 +27,13 @@ Retrato factual do código na branch `dev` (commit `a53ae22`). Só descreve o qu
 
 | Tabela | Campos principais | Uso |
 |---|---|---|
-| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao` | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste |
+| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao`; da T8: `modo` (`conversao` / `hospitalidade` / `resolucao`, nulo = não definido), `camposPedido` (Json `[{nome, obrigatorio}]`), `nomeRemetente`, `destinoEncaminhamento` (default `email`), `canaisFallback` (Json `{principal, sac?, rh?, compras?, imprensa?, urgencia?}`, cada um `{tipo, contato}`) | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste. Os campos da T8 ainda não são lidos pelo atendimento |
 | `WhatsappConversation` | `id`, `clienteId`, `numeroContato`, `handoffEm`, `revisar`, `createdAt`, `updatedAt`; unique `(clienteId, numeroContato)` | Uma conversa por contato por cliente |
 | `WhatsappMessage` | `id`, `conversationId`, `role` (`USER`/`ASSISTANT`), `texto`, `createdAt` | Mensagens do WhatsApp |
 | `Demo` | (`@@ignore`) | Tabela antiga, mantida só como cópia de segurança da migração da T7. Cada demo virou um `Cliente` prospect com o mesmo id e o mesmo token. Sem uso no código |
 | `DemoMensagem` | `clienteId`, `demoId` (histórico), `sessaoId`, `role`, `texto`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo` | Mensagens do link de teste |
 
-- Criação de `Cliente` por tela/API: **não existe** (inserção manual no banco; o `testeToken` é gerado sozinho e o link nasce bloqueado). `prisma/seed.ts` está vazio.
+- Criação e edição de `Cliente` pelo admin (T8): `/admin/clientes/novo` e `/admin/clientes/[id]` (componente `src/app/admin/clientes/CadastroForm.tsx`), rotas `POST /api/admin/clientes` (cria com `status: prospect`), `PUT /api/admin/clientes/[id]` e `POST /api/admin/clientes/[id]/ativar` (prospect → ativo, só com `phoneNumberId` salvo). Validação do formulário em `src/lib/admin/cadastro.ts` (Zod): modo obrigatório, e-mail válido, fallback principal obrigatório, campo do pedido sem nome descartado e nome repetido recusado, remetente vazio vira "Concierge [nome]", cliente não-prospect não pode ficar sem `phoneNumberId`. ID da Meta repetido → 409. O `testeToken` é gerado pelo banco e o link nasce bloqueado. `prisma/seed.ts` está vazio.
 - Link de teste: `/demo/{testeToken}`. Liberado enquanto `testeLiberadoAte` está no futuro; o admin (`/admin/clientes`) libera por 7 dias ou bloqueia (`POST /api/admin/clientes/[id]/liberar-teste`). O limite de mensagens conta a partir de `testeLiberadoEm`, ou seja, zera a cada liberação.
 - **Redis** (`src/lib/ratelimit/redis.ts`) só é usado de fato pelo healthcheck (`src/app/api/health/route.ts`). O rate limit `checkRateLimit()` (`src/lib/ratelimit/index.ts`) **não é chamado em lugar nenhum**.
 
@@ -244,9 +244,8 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 - O nome no prompt vem de `cerebro.NOME_DO_NEGOCIO`, não da coluna `Cliente.nomeNegocio`.
 
 ### Edição no admin
-- Tela: `src/app/admin/clientes/[id]/cerebro/page.tsx` + `CerebroEditor.tsx`. Dois painéis: JSON atual (somente leitura) e textarea de rascunho. Botões "Salvar cérebro" (com `window.confirm`) e "Descartar edição".
-- API: `src/app/api/admin/clientes/[id]/cerebro/route.ts` → `POST`. Exige cookie de admin (`isAdminAuthed()`), recebe `{ cerebro: "<string JSON>" }`, faz `JSON.parse` e grava com `prisma.cliente.update`.
-- **Validação: só checa se é JSON válido** (no front e no servidor). Validação de chaves, tipos ou tamanho: **não existe**. O próprio editor mostra "Validação só checa se é JSON válido".
+- Desde a T8 o cérebro é editado na tela de cadastro (`/admin/clientes/[id]`, um textarea no meio do formulário) e salvo junto com o resto pelo `PUT /api/admin/clientes/[id]` (com `window.confirm`). A antiga `/admin/clientes/[id]/cerebro` só redireciona; o `CerebroEditor.tsx` e a rota `POST .../cerebro` foram removidos.
+- **Validação só dos nomes das chaves** (`src/lib/cerebro/chaves.ts` → `lerCerebro()`): precisa ser objeto JSON e toda chave precisa estar em `CHAVES_CEREBRO` (as 12 da tabela acima); senão a mensagem diz "Chave desconhecida no cérebro: X". Tipos, campo vazio e tamanho: **não são checados**. Cérebro já gravado com chave fora da lista continua funcionando, mas só salva de novo depois de corrigido. A lista muda junto com o formato do cérebro (T12/T13). Cliente novo começa com as 12 chaves vazias.
 - Histórico de versões do cérebro: **não existe** (sobrescreve).
 - O link de teste usa o mesmo cérebro do cliente (`Cliente.cerebro`), editado na mesma tela.
 - Login do admin: senha única em `ADMIN_PASSWORD` (`src/app/api/admin/login/route.ts`), JWT em cookie `auth_token` com `sub: 'admin'`, validade 7 dias (`src/lib/auth.ts`).
@@ -369,7 +368,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 7. **Sem pausa por conversa nem handoff para humano no canal.** Depois do handoff, o bot continua falando com o lead enquanto o prestador pode estar falando também.
 8. **Handoff depende só do `suggestBook` do LLM.** Sem checagem de nome; `RESEND_MODE` default `mock` faz o handoff "dar certo" (grava `handoffEm`) sem e-mail sair; o cooldown de 24h bloqueia um segundo pedido diferente no mesmo dia; detecção de vazamento derruba o handoff junto.
 9. **Memória limitada por contagem.** 40 mensagens, sem resumo e sem estado persistido do lead; em conversa muito longa o nome e o contexto inicial saem da janela. O teto é por número de mensagens, não por tamanho (cada uma pode ter até ~500 caracteres do cliente).
-10. **Cérebro sem schema.** Chave com nome errado vira campo vazio sem aviso; valor não-string pode virar `"[object Object]"`; sem histórico de versões.
+10. **Cérebro sem schema de tipos.** Desde a T8 chave com nome errado é recusada ao salvar, mas valor não-string ainda pode virar `"[object Object]"`; sem histórico de versões.
 11. **Filtros por regex com falso positivo/negativo.**
     - Entrada: mensagens com mais de 500 caracteres, ou com termos como "disregard", "aja como", "finja que", recebem "não consegui entender" sem passar pela IA.
     - Saída: palavras como "Gemini" ou "regras internas" numa resposta legítima (ex.: nome de negócio, signo) trocam a resposta inteira pela genérica.

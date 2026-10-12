@@ -4,6 +4,7 @@ import { isAdminAuthed } from '@/lib/admin/guard'
 import { prisma } from '@/lib/prisma'
 import LogoutButton from '../LogoutButton'
 import StatusToggle from './StatusToggle'
+import LinkTeste from './LinkTeste'
 import InterruptorGeral from './InterruptorGeral'
 import { lerInterruptor } from '@/lib/admin/interruptor'
 
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic'
 function statusLabel(s: string): { label: string; dot: string } {
   if (s === 'ativo') return { label: 'Ativo', dot: 'dot ativo' }
   if (s === 'manutencao') return { label: 'Em manutenção', dot: 'dot manutencao' }
+  if (s === 'prospect') return { label: 'Prospect', dot: 'dot outro' }
   return { label: s, dot: 'dot outro' }
 }
 
@@ -27,8 +29,11 @@ export default async function ClientesPage() {
       nomeNegocio: true,
       emailPrestador: true,
       status: true,
+      testeToken: true,
+      testeLiberadoAte: true,
     },
   })
+  const agora = new Date()
 
   const interruptor = await lerInterruptor()
   const ligadoEm = interruptor.ligadoEm
@@ -47,7 +52,7 @@ export default async function ClientesPage() {
         </span>
         <LogoutButton />
       </div>
-      <div className="shell">
+      <div className="shell shell-wide">
         <p className="muted breadcrumb">
           <Link href="/admin">← Voltar</Link>
         </p>
@@ -71,6 +76,7 @@ export default async function ClientesPage() {
                   <th>Negócio</th>
                   <th>E-mail do prestador</th>
                   <th>Status</th>
+                  <th>Link de teste</th>
                   <th className="col-acao">Conversas</th>
                   <th className="col-acao">Cérebro</th>
                   <th className="col-acao">Ação</th>
@@ -88,6 +94,18 @@ export default async function ClientesPage() {
                           <span className={s.dot} aria-hidden />
                           {s.label}
                         </span>
+                      </td>
+                      <td>
+                        <LinkTeste
+                          id={c.id}
+                          nomeNegocio={c.nomeNegocio}
+                          token={c.testeToken}
+                          liberadoAte={
+                            c.testeLiberadoAte && c.testeLiberadoAte > agora
+                              ? c.testeLiberadoAte.toISOString()
+                              : null
+                          }
+                        />
                       </td>
                       <td className="col-acao">
                         <Link className="link-action" href={`/admin/clientes/${c.id}/conversas`}>

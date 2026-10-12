@@ -12,7 +12,7 @@ Retrato factual do código na branch `dev` (commit `a53ae22`). Só descreve o qu
   - `package.json` → `"start": "prisma migrate deploy && next start -p ${PORT:-3000}"`.
   - O README descreve deploy no **Railway** (Nixpacks, sem Dockerfile), com ambientes `staging` (branch `dev`) e `production` (branch `main`).
 - `docker-compose.yml` sobe Postgres 16 e Redis 7 **só para dev local**.
-- `src/instrumentation.ts` → `register()`: a cada boot faz `upsert` de um Cliente de teste (`nomeNegocio: 'Teste'`, `phoneNumberId: '000000000000000'`, `cerebro: {}`).
+- `src/instrumentation.ts` foi removido na T7 (criava um cliente "Teste" a cada boot); a migração `20261012120000_unificar_demo_cliente` apagou o registro.
 
 ### Conexão com o WhatsApp
 - **Cloud API da Meta direto**, sem BSP.
@@ -27,13 +27,14 @@ Retrato factual do código na branch `dev` (commit `a53ae22`). Só descreve o qu
 
 | Tabela | Campos principais | Uso |
 |---|---|---|
-| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique), `wabaId`, `whatsappToken`, `emailPrestador`, `cerebro` (Json), `status` (default `"ativo"`) | Um prestador atendido pelo bot |
+| `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao` | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste |
 | `WhatsappConversation` | `id`, `clienteId`, `numeroContato`, `handoffEm`, `revisar`, `createdAt`, `updatedAt`; unique `(clienteId, numeroContato)` | Uma conversa por contato por cliente |
 | `WhatsappMessage` | `id`, `conversationId`, `role` (`USER`/`ASSISTANT`), `texto`, `createdAt` | Mensagens do WhatsApp |
-| `Demo` | `nomeNegocio`, `numeroExibicao`, `emailExibicao`, `cerebro` (Json), `token` (unique), `expiraEm`, `status`, `limiteMensagens` (default 300) | Demo web para prospects |
-| `DemoMensagem` | `demoId`, `sessaoId`, `role`, `texto`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo` | Mensagens da demo |
+| `Demo` | (`@@ignore`) | Tabela antiga, mantida só como cópia de segurança da migração da T7. Cada demo virou um `Cliente` prospect com o mesmo id e o mesmo token. Sem uso no código |
+| `DemoMensagem` | `clienteId`, `demoId` (histórico), `sessaoId`, `role`, `texto`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo` | Mensagens do link de teste |
 
-- Criação de `Cliente` ou `Demo` por tela/API: **não existe** (só o upsert de teste em `instrumentation.ts`; o resto é inserção manual no banco). `prisma/seed.ts` está vazio.
+- Criação de `Cliente` por tela/API: **não existe** (inserção manual no banco; o `testeToken` é gerado sozinho e o link nasce bloqueado). `prisma/seed.ts` está vazio.
+- Link de teste: `/demo/{testeToken}`. Liberado enquanto `testeLiberadoAte` está no futuro; o admin (`/admin/clientes`) libera por 7 dias ou bloqueia (`POST /api/admin/clientes/[id]/liberar-teste`). O limite de mensagens conta a partir de `testeLiberadoEm`, ou seja, zera a cada liberação.
 - **Redis** (`src/lib/ratelimit/redis.ts`) só é usado de fato pelo healthcheck (`src/app/api/health/route.ts`). O rate limit `checkRateLimit()` (`src/lib/ratelimit/index.ts`) **não é chamado em lugar nenhum**.
 
 ### Modelo de LLM e parâmetros
@@ -221,7 +222,7 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 ## 4. Cérebro
 
 ### Formato no banco
-- Coluna `Cliente.cerebro` (e `Demo.cerebro`) do tipo **`Json`** (`prisma/schema.prisma`).
+- Coluna `Cliente.cerebro` do tipo **`Json`** (`prisma/schema.prisma`).
 - Na prática é um **objeto JSON plano com chaves em MAIÚSCULAS**. `buildPrestadorPrompt()` lê exatamente estas 12 chaves:
 
 | Chave | Onde entra | Default se ausente |
@@ -247,7 +248,7 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 - API: `src/app/api/admin/clientes/[id]/cerebro/route.ts` → `POST`. Exige cookie de admin (`isAdminAuthed()`), recebe `{ cerebro: "<string JSON>" }`, faz `JSON.parse` e grava com `prisma.cliente.update`.
 - **Validação: só checa se é JSON válido** (no front e no servidor). Validação de chaves, tipos ou tamanho: **não existe**. O próprio editor mostra "Validação só checa se é JSON válido".
 - Histórico de versões do cérebro: **não existe** (sobrescreve).
-- Edição do cérebro da `Demo` pelo admin: **não existe**.
+- O link de teste usa o mesmo cérebro do cliente (`Cliente.cerebro`), editado na mesma tela.
 - Login do admin: senha única em `ADMIN_PASSWORD` (`src/app/api/admin/login/route.ts`), JWT em cookie `auth_token` com `sub: 'admin'`, validade 7 dias (`src/lib/auth.ts`).
 
 ---
@@ -368,7 +369,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 13. **Normalização de número assume Brasil.** `normalizarNumero()` prefixa `55` em qualquer número que não comece com 55, e o mesmo número normalizado é usado no envio; número estrangeiro tende a falhar no envio.
 14. **Data/hora no meio do system prompt com `cache_control`.** O texto muda a cada minuto e fica antes do cérebro, então o prefixo que seria cacheado muda junto.
 15. **Envio sem retry e sem status de entrega.** Falha da Graph API só gera log.
-16. **Resíduos e código morto.** `checkRateLimit`, Cal.com, Kiwify, `sendBookingConfirmation`, `checklist`/`steps`; README descreve rotas que não existem (`chat`, `booking`, `payment`) e o produto antigo; `instrumentation.ts` faz upsert de um cliente "Teste" em todo boot, inclusive em produção.
+16. **Resíduos e código morto.** `checkRateLimit`, Cal.com, Kiwify, `sendBookingConfirmation`, `checklist`/`steps`; README descreve rotas que não existem (`chat`, `booking`, `payment`) e o produto antigo; `instrumentation.ts` fazia upsert de um cliente "Teste" em todo boot, inclusive em produção (removido na T7).
 17. **Dados pessoais em log.** O log de handoff grava nome, telefone e resumo do lead em texto.
 18. **Admin com senha única** compartilhada, sem usuário individual e sem auditoria de quem editou o cérebro ou mudou status.
 19. **Zero testes automatizados e sem CI.** Qualquer mudança no prompt, nos filtros ou no fluxo só é verificada manualmente.

@@ -23,11 +23,11 @@ export function formatarHora(data: Date): string {
 
 // Mesmo formato do carregarHistorico do WhatsApp: últimas LIMITE_HISTORICO, em ordem cronológica
 export async function carregarHistoricoDemo(
-  demoId: string,
+  clienteId: string,
   sessaoId: string,
 ): Promise<HistoryMessage[]> {
   const msgs = await prisma.demoMensagem.findMany({
-    where: { demoId, sessaoId },
+    where: { clienteId, sessaoId },
     orderBy: { createdAt: 'desc' },
     take: LIMITE_HISTORICO,
     select: { role: true, texto: true, createdAt: true },
@@ -40,11 +40,11 @@ export async function carregarHistoricoDemo(
 }
 
 export async function listarMensagensSessao(
-  demoId: string,
+  clienteId: string,
   sessaoId: string,
 ): Promise<MensagemTela[]> {
   const msgs = await prisma.demoMensagem.findMany({
-    where: { demoId, sessaoId },
+    where: { clienteId, sessaoId },
     orderBy: { createdAt: 'asc' },
     select: { role: true, texto: true, createdAt: true },
   })
@@ -55,16 +55,22 @@ export async function listarMensagensSessao(
   }))
 }
 
-export async function contarMensagensUsuario(demoId: string): Promise<number> {
-  return prisma.demoMensagem.count({ where: { demoId, role: 'USER' } })
+// Teto do link de teste: conta só as mensagens da liberação atual
+export async function contarMensagensUsuario(
+  clienteId: string,
+  desde: Date | null,
+): Promise<number> {
+  return prisma.demoMensagem.count({
+    where: { clienteId, role: 'USER', ...(desde ? { createdAt: { gte: desde } } : {}) },
+  })
 }
 
-export async function contarMensagensSessao(demoId: string, sessaoId: string): Promise<number> {
-  return prisma.demoMensagem.count({ where: { demoId, sessaoId } })
+export async function contarMensagensSessao(clienteId: string, sessaoId: string): Promise<number> {
+  return prisma.demoMensagem.count({ where: { clienteId, sessaoId } })
 }
 
 export async function salvarMensagemDemo(args: {
-  demoId: string
+  clienteId: string
   sessaoId: string
   role: 'USER' | 'ASSISTANT'
   texto: string
@@ -86,11 +92,11 @@ export type HandoffSalvo = {
 
 // Máximo 1 handoff por sessão: devolve o primeiro, se houver
 export async function buscarHandoffSessao(
-  demoId: string,
+  clienteId: string,
   sessaoId: string,
 ): Promise<HandoffSalvo | null> {
   return prisma.demoMensagem.findFirst({
-    where: { demoId, sessaoId, handoff: true },
+    where: { clienteId, sessaoId, handoff: true },
     orderBy: { createdAt: 'asc' },
     select: { leadNome: true, leadIntencao: true, leadResumo: true, createdAt: true },
   })

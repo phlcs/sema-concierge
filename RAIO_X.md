@@ -348,12 +348,12 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 ### Testes automatizados
 - **Testes unitários e CI: não existem.** Não há arquivos `*.test.*`/`*.spec.*`, framework de teste nem pasta `.github`. Além do `npm run lint` (ESLint), existe a bateria de personas.
 - **Bateria de personas (T6):** `npm run bateria -- <cliente>`, sob demanda, rodada pelo Claude Code contra a dev. O detalhe está no README, seção "Bateria de personas". Como funciona:
-  - **Simulação:** uma IA da Anthropic (`BATERIA_ANTHROPIC_KEY`, modelo padrão `claude-sonnet-5-5`) faz o cliente, seguindo um arquétipo e um roteiro de mensagens-chave.
+  - **Simulação:** uma IA da Anthropic (`BATERIA_ANTHROPIC_KEY`, modelo padrão `claude-sonnet-5-5`, temperatura 0,5) faz o cliente juntando uma pessoa (fixa), uma situação (fixa) e a ficha do cliente (o que é "o pedido" naquele negócio). As situações de prompt injection (11 e 12) usam mensagens fixas, sem a IA.
   - **Respostas:** o Concierge responde por `POST /api/bateria/clientes/[id]/resposta`. Essa rota chama `responderMensagem` com o cérebro do cadastro e o histórico mandado pelo script, com o contexto `{ origem: 'bateria', clienteId }`.
   - **O que fica gravado:** nada em `DemoMensagem`. Fica só o `RegistroResposta` (origem `bateria`) e os eventos do motor.
   - **Card:** igual ao do link de teste, no máximo um por conversa.
   - **Acesso:** as três rotas `/api/bateria/*` só respondem com `Authorization: Bearer <BATERIA_TOKEN>` (mínimo de 32 caracteres, comparação em tempo constante, em `src/lib/bateria/acesso.ts`). Sem a variável ou com senha errada, respondem 404. A rota de cérebro devolve o `Cliente.cerebro` inteiro.
-  - **Arquivos:** personas em `bateria/arquetipos.json` e `bateria/clientes/*.json`; régua da leitura crítica em `bateria/criterios.md`; resultados commitados em `bateria/resultados/`.
+  - **Arquivos:** `bateria/pessoas.json` (8), `bateria/situacoes.json` (13), uma ficha por cliente em `bateria/clientes/*.json`, a régua da leitura crítica em `bateria/criterios.md` e os resultados commitados em `bateria/resultados/`.
   - **Como o Claude Code roda:** pela skill `.claude/skills/bateria/SKILL.md`.
 
 ---

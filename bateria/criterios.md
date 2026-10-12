@@ -4,6 +4,8 @@ Régua que o Claude Code usa para ler as conversas da bateria e escrever o relat
 - Candê v1 a v4, de 02/10/2026;
 - Mais Resultado, rodada 2, de 01/10/2026.
 
+Os exemplos vêm de um restaurante e de uma agência, mas **as regras valem para qualquer negócio**: onde se lê "reserva", leia "o pedido" da ficha do cliente (uma consulta, um orçamento, uma matrícula).
+
 Para mudar uma regra, peça ao Claude Code ("adiciona no critério que...") ou edite este arquivo.
 
 O placar automático (`placar.md`) já cobre o que dá para medir por texto. Exemplos: duas perguntas na mesma mensagem, travessão, card que faltou ou que sobrou. Esta régua cobre o que precisa de leitura.

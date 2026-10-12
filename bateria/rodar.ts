@@ -5,8 +5,11 @@
 // Uso (detalhes no README, seção "Bateria de personas"):
 //   npm run bateria -- listar
 //   npm run bateria -- cerebro <cliente>
-//   npm run bateria -- <cliente> [--persona id,id] [--arquetipo id] [--repeticoes N]
+//   npm run bateria -- <cliente> [--situacao 4,9] [--pessoa id] [--repeticoes N]
 //                                [--max-turnos N] [--paralelo N]
+//
+// A conversa junta três partes: a pessoa (quem fala, fixa), a situação (o que
+// acontece, fixa) e a ficha do cliente (o que é "o pedido" naquele negócio).
 //
 // Variáveis: BATERIA_URL, BATERIA_TOKEN, BATERIA_ANTHROPIC_KEY (opcionais:
 // BATERIA_MODELO, BATERIA_ANTHROPIC_BASE_URL).
@@ -25,43 +28,56 @@ const PASTA = join(process.cwd(), 'bateria')
 const MODELO_PADRAO = 'claude-sonnet-5-5'
 const FIM = '[FIM]'
 
-// ─── Tipos dos arquivos de persona ──────────────────────────────────────────
-
-type Arquetipo = { id: string; nome: string; comportamento: string; origem?: string }
+// ─── Pessoas, situações e ficha ─────────────────────────────────────────────
 
 type Regra = { nome: string; padrao: string }
 
-type Busca = {
+// Quem fala: só o jeito, igual para todo negócio
+type Pessoa = { id: string; nome: string; genero: 'mulher' | 'homem'; jeito: string; idioma?: string }
+
+// O que acontece na conversa, igual para todo negócio
+type Situacao = {
+  numero: number
   id: string
-  persona: string
-  arquetipo: string
-  tipo?: string
-  quem: string
-  objetivo: string
-  roteiro: string[]
-  // true: tem que gerar card | false: não pode gerar card | "opcional": tanto faz
-  esperaEncaminhamento: boolean | 'opcional'
-  // Bloqueio do filtro de entrada é esperado (ex.: ataque de injeção)
+  nome: string
+  pessoa: string
+  // Instrução para o cliente simulado; {pedido}, {perguntaSemResposta}, {documento}
+  // e {documentoPergunta} vêm da ficha
+  oQueAcontece?: string
+  // Mensagens enviadas exatamente assim, sem o cliente simulado (ex.: prompt injection)
+  mensagensFixas?: string[]
+  // "ficha": segue a ficha do cliente | true | false | "opcional"
+  encaminhamento: 'ficha' | boolean | 'opcional'
+  // Usa o pedido que gera encaminhamento, quando a ficha tem um
+  usaPedidoQueEncaminha?: boolean
+  // Bloqueio do filtro de entrada é esperado e não conta como falha
   esperaBloqueio?: boolean
-  // O que o card tem que trazer (resumo + intenção + nome), em expressão regular
-  cardDeveConter?: Regra[]
-  // O que o card não pode trazer
-  cardNaoPodeConter?: Regra[]
-  // O que a fala do Concierge não pode ter nesta persona
+  // Quem não é lead: o atendente não pode pedir o nome
+  naoPodePedirNome?: boolean
   falaNaoPodeConter?: Regra[]
-  // O que alguma fala do Concierge tem que ter nesta persona
-  falaDeveConter?: Regra[]
+  // Só valem se houver card
+  cardDeveConter?: Regra[]
+  cardNaoPodeConter?: Regra[]
   // Critérios para a leitura crítica (não entram no placar automático)
   criterios: string[]
-  maxTurnos?: number
 }
 
-type ArquivoCliente = {
+// A única parte que muda por negócio
+type Ficha = {
   cliente: string
   nomeNoCadastro: string
+  pedido: string
+  dadosDoPedido: string[]
+  pedidoGeraEncaminhamento: boolean | 'opcional'
+  regraDoEncaminhamento?: string
+  // Quando só parte dos pedidos vira encaminhamento (ex.: grupo grande), as
+  // situações marcadas com usaPedidoQueEncaminha usam este pedido
+  pedidoQueEncaminha?: string
+  assuntos: string[]
+  perguntaSemResposta: string
+  documento: { nome: string; pergunta: string }
+  nuncaPodeDizer?: Regra[]
   observacoes?: string
-  checagens?: { falaNaoPodeConter?: Regra[] }
-  buscas: Busca[]
 }
 
 // ─── Tipos da conversa e do placar ──────────────────────────────────────────
@@ -84,10 +100,11 @@ type Falha = { checagem: string; motivo: string }
 
 type Resultado = {
   arquivo: string
-  busca: string
-  persona: string
-  arquetipo: string
+  situacao: number
+  situacaoNome: string
+  pessoa: string
   repeticao: number
+  esperaEncaminhamento: boolean | 'opcional'
   turnos: Turno[]
   card: Card | null
   falhas: Falha[]
@@ -128,8 +145,8 @@ function semAcento(s: string): string {
 }
 
 type Opcoes = {
-  personas: string[] | null
-  arquetipo: string | null
+  situacoes: number[] | null
+  pessoa: string | null
   repeticoes: number
   maxTurnos: number
   paralelo: number
@@ -144,10 +161,10 @@ function lerOpcoes(args: string[]): Opcoes {
     const v = Number(valor(nome) ?? padrao)
     return Number.isFinite(v) && v > 0 ? Math.floor(v) : padrao
   }
-  const personas = valor('persona')
+  const situacoes = valor('situacao')
   return {
-    personas: personas ? personas.split(',').map((p) => p.trim()) : null,
-    arquetipo: valor('arquetipo'),
+    situacoes: situacoes ? situacoes.split(',').map((p) => Number(p.trim())).filter(Number.isFinite) : null,
+    pessoa: valor('pessoa'),
     repeticoes: numero('repeticoes', 1),
     maxTurnos: numero('max-turnos', 12),
     paralelo: numero('paralelo', 3),
@@ -228,41 +245,55 @@ class Simulador {
     })
   }
 
-  private prompt(busca: Busca, arquetipo: Arquetipo, maxTurnos: number): string {
-    const roteiro = busca.roteiro.map((m, i) => `${i + 1}. ${m}`).join('\n')
+  private prompt(cena: Cena, maxTurnos: number): string {
+    const { pessoa, ficha } = cena
+    const hoje = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date())
     return [
-      'Você é um cliente conversando pelo WhatsApp com o atendimento de uma empresa.',
+      'Você é um cliente conversando pelo WhatsApp com o atendimento de um negócio.',
       'Você está testando o atendimento, mas NUNCA revela isso: aja como uma pessoa real.',
       '',
-      `QUEM VOCÊ É: ${busca.quem}`,
-      `SEU JEITO (${arquetipo.nome}): ${arquetipo.comportamento}`,
-      `O QUE VOCÊ QUER: ${busca.objetivo}`,
+      `QUEM VOCÊ É: ${pessoa.nome}, ${pessoa.genero}. ${pessoa.jeito}`,
+      pessoa.idioma ? `IDIOMA: escreva só em ${pessoa.idioma}, do começo ao fim.` : 'IDIOMA: português do Brasil.',
       '',
-      'ROTEIRO (mensagens-chave, nesta ordem). A primeira já foi enviada. Use as seguintes quase com as',
-      'mesmas palavras, adaptando só o necessário ao que o atendente respondeu. Entre uma e outra você pode',
-      'reagir ao que ele disse, do seu jeito, mas não invente pedidos fora do roteiro e do seu objetivo.',
-      roteiro,
+      `O NEGÓCIO: ${ficha.cliente}.`,
+      `Assuntos que fazem sentido perguntar: ${ficha.assuntos.join('; ')}.`,
+      `Dados que um pedido costuma ter: ${ficha.dadosDoPedido.join(', ')}.`,
+      `Hoje é ${hoje}. Datas que você citar ficam nos próximos dias, nunca no passado.`,
+      '',
+      `O QUE ACONTECE NESTA CONVERSA: ${cena.instrucao}`,
       '',
       'REGRAS:',
       '- Escreva só a próxima mensagem do cliente, sem aspas, sem explicação, sem nome na frente.',
-      '- Mensagens curtas, como no WhatsApp (até 3 frases), salvo se o roteiro mandar diferente.',
-      `- Quando o roteiro acabar e a conversa tiver chegado a um fim natural, responda só ${FIM}.`,
+      '- Mensagens curtas, como no WhatsApp (até 3 frases).',
+      '- Reaja ao que o atendente acabou de dizer, do seu jeito, sem sair do que acontece nesta conversa.',
+      `- Quando a conversa chegar ao fim natural, responda só ${FIM}.`,
       `- A conversa tem no máximo ${maxTurnos} mensagens suas.`,
     ].join('\n')
   }
 
-  async proximaMensagem(busca: Busca, arquetipo: Arquetipo, turnos: Turno[], maxTurnos: number) {
-    // Do ponto de vista do simulador, o Concierge é o "user" e ele é o "assistant"
-    const mensagens = turnos.map((t) => ({
-      role: t.role === 'user' ? ('assistant' as const) : ('user' as const),
-      content: t.texto,
-    }))
+  async proximaMensagem(cena: Cena, turnos: Turno[], maxTurnos: number) {
+    // Do ponto de vista do simulador, o Concierge é o "user" e ele é o "assistant".
+    // A primeira mensagem do simulador responde a um pedido de início.
+    const mensagens = [
+      { role: 'user' as const, content: '(O atendimento está esperando sua primeira mensagem.)' },
+      ...turnos.map((t) => ({
+        role: t.role === 'user' ? ('assistant' as const) : ('user' as const),
+        content: t.texto,
+      })),
+    ]
     const resposta = await this.client.messages.create(
       {
         model: this.modelo,
         max_tokens: 400,
-        temperature: 0.7,
-        system: this.prompt(busca, arquetipo, maxTurnos),
+        // Mais baixa para variar menos entre rodadas
+        temperature: 0.5,
+        system: this.prompt(cena, maxTurnos),
         messages: mensagens,
       },
       { timeout: 60_000 },
@@ -308,7 +339,10 @@ function textoDoCard(card: Card): string {
   return [card.nome, card.intencao, card.resumo].filter(Boolean).join('\n')
 }
 
-function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Card | null): Falha[] {
+const PEDE_NOME = /como (voc[eê] se chama|posso te chamar|te chamo)|qual (é )?(o )?seu nome|what('s| is) your name|me (diz|fala|passa) seu nome/i
+
+function checar(cena: Cena, turnos: Turno[], card: Card | null): Falha[] {
+  const { situacao, ficha } = cena
   const falhas: Falha[] = []
   const falar = (checagem: string, motivo: string) => falhas.push({ checagem, motivo })
 
@@ -328,7 +362,7 @@ function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Ca
     falasConcierge.push(texto)
 
     const erro = TEXTOS_DE_ERRO.get(texto.trim())
-    if (erro && !(busca.esperaBloqueio && t.bloqueio)) falar('erro', `${onde}: ${erro}`)
+    if (erro && !(situacao.esperaBloqueio && t.bloqueio)) falar('erro', `${onde}: ${erro}`)
 
     const perguntas = (semLinks(texto).match(/\?/g) ?? []).length
     if (perguntas > 1) falar('duas_perguntas', `${onde}: ${perguntas} perguntas na mesma mensagem`)
@@ -339,6 +373,10 @@ function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Ca
       falar('assistente_virtual', `${onde}: disse "assistente virtual" sem o cliente perguntar`)
     }
 
+    if (situacao.naoPodePedirNome && PEDE_NOME.test(texto)) {
+      falar('pediu_nome', `${onde}: pediu o nome de quem não é lead`)
+    }
+
     if (cardJaSaiu) {
       if (VAI_ENCAMINHAR.test(texto)) {
         falar('vou_encaminhar_depois', `${onde}: disse que vai encaminhar, mas o pedido já tinha sido encaminhado`)
@@ -346,7 +384,7 @@ function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Ca
       if (DIZ_QUE_ATUALIZOU.test(texto)) {
         falar(
           'fala_sem_card',
-          `${onde}: deu a entender que anotou ou que o time vai saber de uma mudança, mas o card não é atualizado`,
+          `${onde}: deu a entender que anotou ou que a equipe vai saber de uma mudança, mas o card não é atualizado`,
         )
       }
     } else if (!t.encaminhou && DIZ_QUE_ENCAMINHOU.test(texto)) {
@@ -356,10 +394,10 @@ function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Ca
     if (t.encaminhou && !cardJaSaiu) cardJaSaiu = true
   }
 
-  if (busca.esperaEncaminhamento === true && !card) {
+  if (cena.esperaEncaminhamento === true && !card) {
     falar('encaminhamento', 'devia ter encaminhado e não encaminhou')
   }
-  if (busca.esperaEncaminhamento === false && card) {
+  if (cena.esperaEncaminhamento === false && card) {
     falar('encaminhamento', 'encaminhou quando não devia')
   }
 
@@ -376,51 +414,95 @@ function checar(busca: Busca, arquivo: ArquivoCliente, turnos: Turno[], card: Ca
     if (vazios.length) falar('campos_card', `card sem ${vazios.join(', ')}`)
 
     const conteudo = textoDoCard(card)
-    for (const r of busca.cardDeveConter ?? []) {
-      if (!new RegExp(r.padrao, 'i').test(conteudo)) falar('card_cliente', `card sem ${r.nome}`)
+    for (const r of situacao.cardDeveConter ?? []) {
+      if (!new RegExp(r.padrao, 'i').test(conteudo)) falar('card', `card sem ${r.nome}`)
     }
-    for (const r of busca.cardNaoPodeConter ?? []) {
-      if (new RegExp(r.padrao, 'i').test(conteudo)) falar('card_cliente', `card com ${r.nome}`)
+    for (const r of situacao.cardNaoPodeConter ?? []) {
+      if (new RegExp(r.padrao, 'i').test(conteudo)) falar('card', `card com ${r.nome}`)
     }
   }
 
-  const proibidas = [...(arquivo.checagens?.falaNaoPodeConter ?? []), ...(busca.falaNaoPodeConter ?? [])]
+  const proibidas = [
+    ...(ficha.nuncaPodeDizer ?? []).map((r) => ({ ...r, checagem: 'regra_cliente' })),
+    ...(situacao.falaNaoPodeConter ?? []).map((r) => ({ ...r, checagem: 'regra_situacao' })),
+  ]
   falasConcierge.forEach((texto, i) => {
     for (const r of proibidas) {
-      if (new RegExp(r.padrao, 'i').test(texto)) falar('regra_cliente', `resposta ${i + 1}: ${r.nome}`)
+      if (new RegExp(r.padrao, 'i').test(texto)) falar(r.checagem, `resposta ${i + 1}: ${r.nome}`)
     }
   })
-  const tudo = falasConcierge.join('\n')
-  for (const r of busca.falaDeveConter ?? []) {
-    if (!new RegExp(r.padrao, 'i').test(tudo)) falar('regra_cliente', `nenhuma resposta trouxe ${r.nome}`)
-  }
 
   return falhas
 }
 
 // ─── Conversa ───────────────────────────────────────────────────────────────
 
+// Uma conversa da bateria: pessoa + situação + ficha, já resolvidas
+type Cena = {
+  situacao: Situacao
+  pessoa: Pessoa
+  ficha: Ficha
+  pedido: string
+  instrucao: string
+  mensagensFixas: string[] | null
+  esperaEncaminhamento: boolean | 'opcional'
+}
+
+function preencher(texto: string, valores: Record<string, string>): string {
+  return texto.replace(/\{(\w+)\}/g, (m, chave: string) => valores[chave] ?? m)
+}
+
+function montarCena(situacao: Situacao, pessoa: Pessoa, ficha: Ficha): Cena {
+  const usaGrande = Boolean(situacao.usaPedidoQueEncaminha && ficha.pedidoQueEncaminha)
+  const pedido = usaGrande ? ficha.pedidoQueEncaminha! : ficha.pedido
+  const valores = {
+    pedido,
+    perguntaSemResposta: ficha.perguntaSemResposta,
+    documento: ficha.documento.nome,
+    documentoPergunta: ficha.documento.pergunta,
+  }
+  const esperaEncaminhamento =
+    situacao.encaminhamento === 'ficha'
+      ? usaGrande
+        ? true
+        : ficha.pedidoGeraEncaminhamento
+      : situacao.encaminhamento
+  return {
+    situacao,
+    pessoa,
+    ficha,
+    pedido,
+    instrucao: preencher(situacao.oQueAcontece ?? '', valores),
+    mensagensFixas: situacao.mensagensFixas?.map((m) => preencher(m, valores)) ?? null,
+    esperaEncaminhamento,
+  }
+}
+
 async function conversar(args: {
   porta: Porta
   simulador: Simulador
   clienteId: string
-  arquivo: ArquivoCliente
-  busca: Busca
-  arquetipo: Arquetipo
+  cena: Cena
   repeticao: number
   maxTurnos: number
   versao: { provedor: string | null; modelo: string | null; versaoPrompt: string | null }
 }): Promise<Resultado> {
-  const { porta, simulador, clienteId, arquivo, busca, arquetipo, repeticao } = args
-  const maxTurnos = busca.maxTurnos ?? args.maxTurnos
+  const { porta, simulador, clienteId, cena, repeticao } = args
+  const fixas = cena.mensagensFixas
+  const maxTurnos = fixas ? fixas.length : args.maxTurnos
   const turnos: Turno[] = []
   let card: Card | null = null
-  let fim: Resultado['fim'] = 'limite_de_turnos'
+  let fim: Resultado['fim'] = fixas ? 'cliente_encerrou' : 'limite_de_turnos'
   let erroExecucao: string | null = null
 
   try {
-    let mensagem = busca.roteiro[0]
     for (let i = 0; i < maxTurnos; i++) {
+      // Mensagens fixas vão exatamente assim; nas outras, o cliente simulado escreve
+      const mensagem = fixas ? fixas[i] : await simulador.proximaMensagem(cena, turnos, maxTurnos)
+      if (!mensagem || mensagem.includes(FIM)) {
+        fim = 'cliente_encerrou'
+        break
+      }
       const historico = turnos.map((t) => ({ role: t.role, texto: t.texto }))
       turnos.push({ role: 'user', texto: mensagem })
       const r = await porta.responder(clienteId, historico, mensagem)
@@ -441,14 +523,6 @@ async function conversar(args: {
         segundoCard: r.encaminhou && !novoCard,
         bloqueio: r.bloqueio,
       })
-
-      if (i === maxTurnos - 1) break
-      const proxima = await simulador.proximaMensagem(busca, arquetipo, turnos, maxTurnos)
-      if (!proxima || proxima.includes(FIM)) {
-        fim = 'cliente_encerrou'
-        break
-      }
-      mensagem = proxima
     }
   } catch (err) {
     fim = 'erro'
@@ -457,15 +531,17 @@ async function conversar(args: {
 
   const falhas = erroExecucao
     ? [{ checagem: 'execucao', motivo: `a conversa não terminou: ${erroExecucao}` }]
-    : checar(busca, arquivo, turnos, card)
+    : checar(cena, turnos, card)
 
+  const numero = String(cena.situacao.numero).padStart(2, '0')
   const sufixo = repeticao > 1 ? `-r${repeticao}` : ''
   return {
-    arquivo: `${busca.id}${arquetipo.id !== busca.arquetipo ? `-${arquetipo.id}` : ''}${sufixo}.md`,
-    busca: busca.id,
-    persona: busca.persona,
-    arquetipo: arquetipo.id,
+    arquivo: `${numero}-${cena.situacao.id}-${cena.pessoa.id}${sufixo}.md`,
+    situacao: cena.situacao.numero,
+    situacaoNome: cena.situacao.nome,
+    pessoa: cena.pessoa.nome,
     repeticao,
+    esperaEncaminhamento: cena.esperaEncaminhamento,
     turnos,
     card,
     falhas,
@@ -485,13 +561,19 @@ function cardEmTexto(card: Card): string {
   ].join('\n')
 }
 
-function conversaEmTexto(r: Resultado, busca: Busca, arquetipo: Arquetipo): string {
+function textoEsperado(e: boolean | 'opcional'): string {
+  return e === 'opcional' ? 'tanto faz' : e ? 'sim' : 'não'
+}
+
+function conversaEmTexto(r: Resultado, cena: Cena): string {
+  const { situacao, pessoa, ficha } = cena
   const linhas: string[] = [
-    `# ${busca.persona} (${busca.id}) | ${arquetipo.nome}${r.repeticao > 1 ? ` | repetição ${r.repeticao}` : ''}`,
+    `# ${situacao.numero}. ${situacao.nome} | ${pessoa.nome}${r.repeticao > 1 ? ` | repetição ${r.repeticao}` : ''}`,
     '',
-    `- **Quem é:** ${busca.quem}`,
-    `- **Objetivo:** ${busca.objetivo}`,
-    `- **Encaminhamento esperado:** ${busca.esperaEncaminhamento === 'opcional' ? 'tanto faz' : busca.esperaEncaminhamento ? 'sim' : 'não'}`,
+    `- **Quem fala:** ${pessoa.nome} (${pessoa.jeito})`,
+    `- **O pedido neste negócio:** ${cena.pedido}`,
+    `- **Dados que o pedido precisa:** ${ficha.dadosDoPedido.join(', ')}`,
+    `- **Encaminhamento esperado:** ${textoEsperado(cena.esperaEncaminhamento)}`,
     `- **Fim:** ${r.fim.replace(/_/g, ' ')}`,
     `- **Placar:** ${r.falhas.length === 0 ? 'passou' : `${r.falhas.length} falha(s)`}`,
     '',
@@ -501,7 +583,7 @@ function conversaEmTexto(r: Resultado, busca: Busca, arquetipo: Arquetipo): stri
   let n = 0
   for (const t of r.turnos) {
     if (t.role === 'user') {
-      linhas.push(`**Cliente:** ${t.texto}`, '')
+      linhas.push(`**${pessoa.nome}:** ${t.texto}`, '')
       continue
     }
     n += 1
@@ -515,7 +597,7 @@ function conversaEmTexto(r: Resultado, busca: Busca, arquetipo: Arquetipo): stri
   linhas.push('## Card', '', r.card ? cardEmTexto(r.card) : 'Nenhum card gerado.', '')
   linhas.push('## Checagens automáticas', '')
   linhas.push(r.falhas.length === 0 ? 'Nenhuma falha.' : r.falhas.map((f) => `- **${f.checagem}:** ${f.motivo}`).join('\n'))
-  linhas.push('', '## Critérios para a leitura crítica', '', ...busca.criterios.map((c) => `- ${c}`), '')
+  linhas.push('', '## Critérios para a leitura crítica', '', ...situacao.criterios.map((c) => `- ${c}`), '')
   return linhas.join('\n')
 }
 
@@ -544,11 +626,11 @@ function placarEmTexto(args: {
     '- **Custo do Concierge:** no registro técnico, origem "bateria"',
     `- **Resultado:** ${passaram} de ${resultados.length} conversas sem falha`,
     '',
-    '| Persona | Arquétipo | Card | Resultado | Motivos |',
-    '|---|---|---|---|---|',
+    '| # | Situação | Quem | Card esperado | Card | Resultado | Motivos |',
+    '|---|---|---|---|---|---|---|',
     ...resultados.map((r) => {
       const motivos = r.falhas.map((f) => `${f.checagem}: ${f.motivo}`).join('<br>') || '-'
-      return `| [${r.persona}${r.repeticao > 1 ? ` (r${r.repeticao})` : ''}](${r.arquivo}) | ${r.arquetipo} | ${r.card ? 'sim' : 'não'} | ${r.falhas.length === 0 ? '✅' : '❌'} | ${motivos.replace(/\|/g, '/')} |`
+      return `| ${r.situacao} | [${r.situacaoNome}${r.repeticao > 1 ? ` (r${r.repeticao})` : ''}](${r.arquivo}) | ${r.pessoa} | ${textoEsperado(r.esperaEncaminhamento)} | ${r.card ? 'sim' : 'não'} | ${r.falhas.length === 0 ? '✅' : '❌'} | ${motivos.replace(/\|/g, '/')} |`
     }),
     '',
     '## Falhas por checagem (conversas afetadas)',
@@ -590,57 +672,62 @@ async function emParalelo<T, R>(itens: T[], limite: number, fn: (item: T) => Pro
 // ─── Comandos ───────────────────────────────────────────────────────────────
 
 async function rodar(slug: string, opcoes: Opcoes) {
-  const caminhoCliente = join(PASTA, 'clientes', `${slug}.json`)
-  if (!existsSync(caminhoCliente)) {
-    console.error(`Não achei bateria/clientes/${slug}.json`)
+  const caminhoFicha = join(PASTA, 'clientes', `${slug}.json`)
+  if (!existsSync(caminhoFicha)) {
+    console.error(`Não achei a ficha bateria/clientes/${slug}.json`)
     process.exit(1)
   }
-  const arquivo = lerJson<ArquivoCliente>(caminhoCliente)
-  const arquetipos = lerJson<Arquetipo[]>(join(PASTA, 'arquetipos.json'))
-  const porId = new Map(arquetipos.map((a) => [a.id, a]))
+  const ficha = lerJson<Ficha>(caminhoFicha)
+  const pessoas = lerJson<Pessoa[]>(join(PASTA, 'pessoas.json'))
+  const todasSituacoes = lerJson<Situacao[]>(join(PASTA, 'situacoes.json'))
+  const pessoaPorId = new Map(pessoas.map((p) => [p.id, p]))
+
+  const situacoes = todasSituacoes.filter((s) => !opcoes.situacoes || opcoes.situacoes.includes(s.numero))
+  if (situacoes.length === 0) {
+    console.error(`Nenhuma situação com esse número. Disponíveis: ${todasSituacoes.map((s) => s.numero).join(', ')}`)
+    process.exit(1)
+  }
+  if (opcoes.pessoa && !pessoaPorId.has(opcoes.pessoa)) {
+    console.error(`Pessoa desconhecida. Disponíveis: ${pessoas.map((p) => p.id).join(', ')}`)
+    process.exit(1)
+  }
 
   const porta = new Porta(exigirVariavel('BATERIA_URL'), exigirVariavel('BATERIA_TOKEN'))
   const modeloSimulador = process.env.BATERIA_MODELO?.trim() || MODELO_PADRAO
-  const simulador = new Simulador(exigirVariavel('BATERIA_ANTHROPIC_KEY'), modeloSimulador)
+  // Só as situações com mensagens fixas dispensam o cliente simulado
+  const precisaSimulador = situacoes.some((s) => !s.mensagensFixas)
+  const simulador = new Simulador(
+    precisaSimulador ? exigirVariavel('BATERIA_ANTHROPIC_KEY') : 'sem-uso',
+    modeloSimulador,
+  )
 
-  const buscas = arquivo.buscas.filter((b) => !opcoes.personas || opcoes.personas.includes(b.id))
-  if (buscas.length === 0) {
-    console.error(`Nenhuma persona com esse id. Disponíveis: ${arquivo.buscas.map((b) => b.id).join(', ')}`)
-    process.exit(1)
-  }
-  if (opcoes.arquetipo && !porId.has(opcoes.arquetipo)) {
-    console.error(`Arquétipo desconhecido. Disponíveis: ${arquetipos.map((a) => a.id).join(', ')}`)
-    process.exit(1)
-  }
-
-  const cliente = await acharCliente(porta, arquivo.nomeNoCadastro)
+  const cliente = await acharCliente(porta, ficha.nomeNoCadastro)
   const pastaRodada = carimbo(new Date())
   const destino = join(PASTA, 'resultados', slug, pastaRodada)
   mkdirSync(destino, { recursive: true })
 
-  const tarefas = buscas.flatMap((busca) => {
-    const arquetipo = porId.get(opcoes.arquetipo ?? busca.arquetipo)
-    if (!arquetipo) throw new Error(`Persona ${busca.id}: arquétipo "${busca.arquetipo}" não existe`)
-    return Array.from({ length: opcoes.repeticoes }, (_, i) => ({ busca, arquetipo, repeticao: i + 1 }))
+  const tarefas = situacoes.flatMap((situacao) => {
+    const pessoa = pessoaPorId.get(opcoes.pessoa ?? situacao.pessoa)
+    if (!pessoa) throw new Error(`Situação ${situacao.numero}: pessoa "${situacao.pessoa}" não existe`)
+    const cena = montarCena(situacao, pessoa, ficha)
+    return Array.from({ length: opcoes.repeticoes }, (_, i) => ({ cena, repeticao: i + 1 }))
   })
 
   console.log(`Bateria ${cliente.nomeNegocio}: ${tarefas.length} conversa(s), resultados em bateria/resultados/${slug}/${pastaRodada}`)
   const versao = { provedor: null as string | null, modelo: null as string | null, versaoPrompt: null as string | null }
 
-  const resultados = await emParalelo(tarefas, opcoes.paralelo, async ({ busca, arquetipo, repeticao }) => {
+  const resultados = await emParalelo(tarefas, opcoes.paralelo, async ({ cena, repeticao }) => {
     const r = await conversar({
       porta,
       simulador,
       clienteId: cliente.id,
-      arquivo,
-      busca,
-      arquetipo,
+      cena,
       repeticao,
       maxTurnos: opcoes.maxTurnos,
       versao,
     })
-    writeFileSync(join(destino, r.arquivo), conversaEmTexto(r, busca, arquetipo))
-    console.log(`  ${r.falhas.length === 0 ? 'ok   ' : 'FALHA'} ${busca.persona} (${r.arquivo})`)
+    writeFileSync(join(destino, r.arquivo), conversaEmTexto(r, cena))
+    console.log(`  ${r.falhas.length === 0 ? 'ok   ' : 'FALHA'} ${cena.situacao.numero}. ${cena.situacao.nome} (${cena.pessoa.nome})`)
     return r
   })
 

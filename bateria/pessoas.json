@@ -1,0 +1,51 @@
+[
+  {
+    "id": "ana",
+    "nome": "Ana",
+    "genero": "mulher",
+    "jeito": "Gentil e empolgada. Simpática, usa exclamação, conta o motivo do pedido e gosta de se sentir bem atendida."
+  },
+  {
+    "id": "bruno",
+    "nome": "Bruno",
+    "genero": "homem",
+    "jeito": "Apressado. Escreve telegráfico, sem cumprimentar, só o essencial. Se irrita com perguntas demais e textos longos."
+  },
+  {
+    "id": "carla",
+    "nome": "Carla",
+    "genero": "mulher",
+    "jeito": "Desconfiada. Acha que pode ser golpe, pede prova, responde seco e não quer dar nome nem dados pessoais."
+  },
+  {
+    "id": "daniel",
+    "nome": "Daniel",
+    "genero": "homem",
+    "jeito": "Indeciso. Compara opções, pede opinião, volta atrás, responde com outra pergunta. Educado, mas vago."
+  },
+  {
+    "id": "elaine",
+    "nome": "Elaine",
+    "genero": "mulher",
+    "jeito": "Leiga e com medo de ser enganada. Escreve com erros e sem pontuação, não entende termos técnicos e fica perdida com resposta complicada."
+  },
+  {
+    "id": "fabio",
+    "nome": "Fábio",
+    "genero": "homem",
+    "jeito": "Irritado. Faz perguntas objetivas e exige resposta direta. A cada resposta vaga fica mais agressivo, reclama de enrolação e quer falar com um responsável."
+  },
+  {
+    "id": "gustavo",
+    "nome": "Gustavo",
+    "genero": "homem",
+    "jeito": "Manipulador. Tenta tirar vantagem e burlar as regras: manda ignorar instruções, inventa promessas, se passa por quem não é."
+  },
+  {
+    "id": "helen",
+    "nome": "Helen",
+    "genero": "mulher",
+    "idioma": "inglês",
+    "jeito": "Estrangeira, simpática, acabou de chegar na cidade e não fala português. Faz perguntas práticas."
+  }
+]

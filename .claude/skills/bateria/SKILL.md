@@ -1,6 +1,6 @@
 ---
 name: bateria
-description: Roda a bateria de personas do Concierge contra o ambiente de dev e devolve o placar e o relatório crítico, comparado com a rodada anterior. Use quando o Pedro pedir "roda a bateria", "testa o cliente X", "bateria do Candê", ou quiser criar ou ajustar as personas de um cliente.
+description: Roda a bateria de personas do Concierge contra o ambiente de dev e devolve o placar e o relatório crítico, comparado com a rodada anterior. Use quando o Pedro pedir "roda a bateria", "testa o cliente X", "bateria do Candê", ou quiser criar ou ajustar a ficha de um cliente.
 ---
 
 # Bateria de personas (T6)
@@ -9,8 +9,9 @@ Toda a conversa com o Pedro é em português simples. Ele é PM, não dev.
 
 ## O que existe
 - `bateria/rodar.ts`: o script. Comando: `npm run bateria -- <cliente> [opções]`.
-- `bateria/arquetipos.json`: o jeito de cada persona (fixo, vale para todo cliente).
-- `bateria/clientes/<cliente>.json`: as buscas (o que cada persona quer), o roteiro de mensagens-chave, o encaminhamento esperado e as checagens do cliente.
+- `bateria/pessoas.json`: quem fala. 8 pessoas fixas, iguais para todo negócio.
+- `bateria/situacoes.json`: o que acontece. 13 situações fixas, iguais para todo negócio, cada uma com a pessoa padrão e o encaminhamento esperado. A 11 e a 12 são prompt injection, com mensagens fixas.
+- `bateria/clientes/<cliente>.json`: a ficha do cliente, a única parte que muda por negócio.
 - `bateria/criterios.md`: a régua da leitura crítica.
 - `bateria/resultados/<cliente>/<data_hora>/`: uma conversa por arquivo, `placar.md`, `placar.json` e o `relatorio.md`, que você escreve.
 
@@ -24,7 +25,7 @@ Se faltar alguma, pare e diga ao Pedro qual configurar e onde (configurações d
 
 ## Rodar a bateria
 1. `git pull` na `dev`. Rode `npm ci` se `node_modules` não existir.
-2. Rode `npm run bateria -- <cliente>`. Use `--persona a,b` para rodar só algumas, `--repeticoes N` para repetir cada uma e `--arquetipo X` para trocar o jeito.
+2. Rode `npm run bateria -- <cliente>`. Use `--situacao 4,9` para rodar só algumas, `--repeticoes N` para repetir cada uma e `--pessoa ana` para trocar quem fala.
 3. Leia `placar.md` e **todas** as conversas da rodada.
 4. Escreva `relatorio.md` na mesma pasta, seguindo `bateria/criterios.md` (seção "Como escrever o relatório crítico").
    - A rodada anterior é a pasta mais recente antes desta em `bateria/resultados/<cliente>/`. Leia o `relatorio.md` e o `placar.json` dela e compare.
@@ -36,11 +37,16 @@ Se faltar alguma, pare e diga ao Pedro qual configurar e onde (configurações d
    - o que mudou desde a rodada anterior;
    - o caminho do relatório.
 
-## Criar ou ajustar personas de um cliente
+## Cliente novo: criar a ficha
+Pessoas e situações não mudam: valem para qualquer negócio (restaurante, agência, médico, advogado, escola, estética, odontologia, a própria Sema). Para um cliente novo, só se cria a ficha.
 1. Rode `npm run bateria -- cerebro <nome>`. O cérebro é salvo em `bateria/.cerebros/`, que fica fora do git e nunca entra num commit.
-2. Monte as buscas a partir do cérebro e dos relatórios antigos, se houver. Sempre inclua:
-   - pelo menos uma busca para cada um dos 7 arquétipos fixos (apressado, desconfiado, indeciso, muda de ideia, fora de escopo, golpista, estrangeiro);
-   - uma busca sobre algo que o cérebro **não** informa;
-   - uma busca sobre o conteúdo dos documentos;
-   - uma busca fora do escopo (política da Meta).
-3. Mostre ao Pedro a lista em linguagem simples (persona, o que quer, se espera encaminhamento) antes de rodar pela primeira vez.
+2. Crie `bateria/clientes/<cliente>.json` copiando uma ficha existente e preenchendo, só com o que está no cérebro:
+   - `pedido`: o que é "fazer o pedido" ali, como frase com verbo ("agendar uma consulta", "pedir um orçamento");
+   - `dadosDoPedido`: os dados que o pedido precisa;
+   - `pedidoGeraEncaminhamento`: se o pedido vira card, e `regraDoEncaminhamento` em uma frase;
+   - `pedidoQueEncaminha`: opcional, só quando parte dos pedidos vira card (no Candê, só grupo acima de 10). As situações 3 e 4 usam esse pedido;
+   - `assuntos`: 3 a 5 temas do cérebro;
+   - `perguntaSemResposta`: algo prático que o cérebro não traz;
+   - `documento`: um documento do cliente e uma pergunta sobre ele;
+   - `nuncaPodeDizer`: opcional, o que o atendente nunca pode dizer, como expressão regular.
+3. Mostre a ficha ao Pedro em linguagem simples antes de rodar pela primeira vez.

@@ -673,3 +673,115 @@
   gap: 24px;
   margin-top: 16px;
 }
+
+/* Cadastro do cliente (T8) */
+.sema-admin .titulo-acao {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sema-admin a.btn-link {
+  display: inline-block;
+  background: var(--lime);
+  color: var(--forest-2);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.sema-admin a.btn-link:hover {
+  background: var(--cream);
+  text-decoration: none;
+}
+
+.sema-admin .cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sema-admin .cadastro-secao h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--off);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sema-admin .cadastro .dica {
+  font-size: 13px;
+  margin: 6px 0 12px;
+}
+
+.sema-admin .cadastro .field .dica {
+  margin-bottom: 0;
+}
+
+.sema-admin .cadastro select {
+  padding: 10px 12px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--forest);
+  color: var(--paper);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.sema-admin .cadastro select:focus {
+  outline: none;
+  border-color: var(--lime);
+}
+
+.sema-admin .cadastro .cerebro-edit {
+  min-height: 360px;
+}
+
+.sema-admin .linha-campo,
+.sema-admin .linha-canal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.sema-admin .linha-campo input[type='text'] {
+  flex: 1;
+  min-width: 160px;
+  width: auto;
+}
+
+.sema-admin .linha-canal-rotulo {
+  width: 220px;
+  font-size: 13px;
+  color: rgba(244, 246, 236, 0.75);
+}
+
+.sema-admin .linha-canal input[type='text'] {
+  flex: 1;
+  min-width: 180px;
+  width: auto;
+}
+
+.sema-admin .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(244, 246, 236, 0.75);
+}
+
+.sema-admin button.btn-mini {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.sema-admin .ativar {
+  margin-top: 8px;
+}

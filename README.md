@@ -1,6 +1,6 @@
 # Concierge (Sema)
 
-Assistente de atendimento por WhatsApp para prestadores de serviço. Cada prestador é um `Cliente` com um "cérebro" (JSON com serviços, preços, horários e regras). O robô responde quem escreve para o número do prestador, usa só o que está no cérebro e, quando o caso pede, manda um e-mail de handoff com os dados do lead. Existe também uma demo web para prospects e um painel admin para ler conversas e editar o cérebro.
+Assistente de atendimento por WhatsApp para prestadores de serviço. Cada prestador é um `Cliente` com um "cérebro" (JSON com serviços, preços, horários e regras). O robô responde quem escreve para o número do prestador, usa só o que está no cérebro e, quando o caso pede, manda um e-mail de handoff com os dados do lead. Existe também uma demo web para prospects e um painel admin para cadastrar clientes, editar o cérebro e ler conversas.
 
 Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis), veja [`RAIO_X.md`](./RAIO_X.md).
 
@@ -39,7 +39,9 @@ APIs:
 | `POST /api/whatsapp/webhook` | Recebe eventos da Meta |
 | `POST /api/admin/login` | Login do admin (`ADMIN_PASSWORD`) |
 | `POST /api/admin/logout` | Logout do admin |
-| `POST /api/admin/clientes/[id]/cerebro` | Salva o cérebro do cliente |
+| `POST /api/admin/clientes` | Cria um cliente (prospect, sem número, com link de teste) |
+| `PUT /api/admin/clientes/[id]` | Salva o cadastro do cliente: nome, cérebro e campos de funcionamento |
+| `POST /api/admin/clientes/[id]/ativar` | Prospect vira ativo (exige ID do número na Meta salvo) |
 | `POST /api/admin/clientes/[id]/status` | Altera o status do cliente (e o tira da lista do interruptor geral) |
 | `POST /api/admin/interruptor` | Interruptor geral de manutenção: `ligar` (pede a senha de novo) ou `desligar` |
 | `GET /api/admin/clientes/[id]/conversas/[conversaId]/mensagens` | Lê mensagens de uma conversa |
@@ -49,7 +51,7 @@ APIs:
 | `GET /api/bateria/clientes/[id]/cerebro` | Bateria: devolve o cérebro do cliente. Só com `BATERIA_TOKEN` |
 | `POST /api/bateria/clientes/[id]/resposta` | Bateria: uma resposta do Concierge, sem gravar conversa. Só com `BATERIA_TOKEN` |
 
-Páginas: `/`, `/admin`, `/admin/login`, `/admin/clientes`, `/admin/eventos`, `/admin/clientes/[id]/cerebro`, `/admin/clientes/[id]/conversas`, `/admin/clientes/[id]/conversas/[conversaId]` e `/demo/[token]`.
+Páginas: `/`, `/admin`, `/admin/login`, `/admin/clientes`, `/admin/eventos`, `/admin/clientes/novo`, `/admin/clientes/[id]` (cadastro; `/admin/clientes/[id]/cerebro` redireciona para cá), `/admin/clientes/[id]/conversas`, `/admin/clientes/[id]/conversas/[conversaId]` e `/demo/[token]`.
 
 ## Variáveis de ambiente
 
@@ -103,7 +105,20 @@ npm run dev
 
 Scripts: `dev`, `build`, `start` (roda `prisma migrate deploy` antes), `lint`, `seed` (o `prisma/seed.ts` está vazio) e `bateria` (ver abaixo). Não há testes unitários nem CI.
 
-Clientes não têm tela de criação: são inseridos direto no banco. Prospect e cliente são o mesmo cadastro (`Cliente`): o prospect existe sem número de WhatsApp (`status: prospect`) e, quando fecha, ganha o `phoneNumberId` e passa a `ativo`. Todo cliente tem um link de teste (`/demo/{testeToken}`), gerado automaticamente e bloqueado até ser liberado no admin (7 dias por vez).
+## Cadastro de clientes (T8)
+
+Clientes são criados e editados no admin: botão **Novo cliente** em `/admin/clientes` e **Editar cadastro** em cada linha. Prospect e cliente são o mesmo cadastro (`Cliente`): o cliente novo nasce prospect, sem número de WhatsApp, e já com link de teste (`/demo/{testeToken}`), bloqueado até ser liberado na lista (7 dias por vez). Ao fechar a venda, preencha o ID do número na Meta, salve e use **Ativar cliente**.
+
+A tela tem, numa página só:
+
+- **Nome do negócio** e **modo** (conversão, hospitalidade ou resolução).
+- **Cérebro** em JSON. Só os nomes das chaves são conferidos: chave fora da lista (`src/lib/cerebro/chaves.ts`, as 12 que o prompt lê hoje) é recusada com o nome dela. Sem checagem de tipo nem de campo vazio. Quando o formato do cérebro mudar (T12/T13), a lista muda junto.
+- **Campos do pedido**: nome + obrigatório, na ordem do e-mail.
+- **E-mail que recebe os encaminhamentos**, **remetente** (vazio = "Concierge [nome do negócio]") e **destino** (só e-mail por enquanto).
+- **Canais de fallback**: o principal é obrigatório; SAC, RH, compras, imprensa/parcerias e contato rápido são opcionais. Cada um com tipo (e-mail, telefone, WhatsApp, outro) e contato.
+- **WhatsApp** (opcional): ID do número na Meta, ID da conta e número exibido no link de teste. Cliente ativo não pode ficar sem o ID do número.
+
+Modo, campos do pedido, remetente, destino e fallback ficam gravados mas **ainda não mudam o atendimento**: entram na T9 (campos do pedido), T10 (remetente e destino) e T12 (modo e fallback).
 
 ## Bateria de personas
 

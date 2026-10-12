@@ -11,27 +11,39 @@ datasource db {
 // WhatsApp, só com cérebro e link de teste; ao fechar a venda o mesmo cadastro
 // ganha o número e passa a ativo. Status: prospect | ativo | manutencao.
 model Cliente {
-  id                   String                 @id @default(cuid())
-  nomeNegocio          String
-  phoneNumberId        String?                @unique
-  wabaId               String?
-  whatsappToken        String?
-  emailPrestador       String
-  cerebro              Json
-  status               String                 @default("ativo")
+  id                    String                 @id @default(cuid())
+  nomeNegocio           String
+  phoneNumberId         String?                @unique
+  wabaId                String?
+  whatsappToken         String?
+  emailPrestador        String
+  cerebro               Json
+  status                String                 @default("ativo")
   // Link de teste (/demo/{testeToken}): gerado na criação, bloqueado até ser liberado
-  testeToken           String                 @unique @default(dbgenerated("(md5((random())::text) || md5((random())::text))"))
+  testeToken            String                 @unique @default(dbgenerated("(md5((random())::text) || md5((random())::text))"))
   // Nulo ou no passado = bloqueado
-  testeLiberadoAte     DateTime?
+  testeLiberadoAte      DateTime?
   // Início da liberação atual: o limite de mensagens conta a partir daqui
-  testeLiberadoEm      DateTime?
-  testeLimiteMensagens Int                    @default(300)
+  testeLiberadoEm       DateTime?
+  testeLimiteMensagens  Int                    @default(300)
   // Número mostrado no topo do link de teste (não é usado para enviar nada)
-  numeroExibicao       String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  conversas            WhatsappConversation[]
-  mensagensTeste       DemoMensagem[]
+  numeroExibicao        String?
+  // Cadastro de funcionamento (T8), fora do cérebro. Ainda não lidos pelo
+  // atendimento: T9 usa camposPedido, T10 remetente e destino, T12 modo e fallback.
+  // conversao | hospitalidade | resolucao. Nulo = não definido (cliente anterior à T8)
+  modo                  String?
+  // [{ nome, obrigatorio }], na ordem do cadastro
+  camposPedido          Json                   @default("[]")
+  // Nome do remetente do e-mail de encaminhamento (ex.: "Concierge Candê")
+  nomeRemetente         String?
+  // Para onde vai o encaminhamento. Só "email" existe por enquanto
+  destinoEncaminhamento String                 @default("email")
+  // { principal: { tipo, contato }, sac?, rh?, compras?, imprensa?, urgencia? }
+  canaisFallback        Json                   @default("{}")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  conversas             WhatsappConversation[]
+  mensagensTeste        DemoMensagem[]
 }
 
 model WhatsappConversation {

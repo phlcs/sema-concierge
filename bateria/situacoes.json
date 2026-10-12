@@ -147,7 +147,7 @@
     "falaNaoPodeConter": [
       {
         "nome": "confirmou o desconto ou a promessa",
-        "padrao": "(desconto|condi[cç][aã]o|promessa|pedido)(?:(?!n[aã]o)[^.])*(est[aá]|fica|ficou|foi) (confirmad|garantid|concedid|aprovad)"
+        "padrao": "(?<!n[aã]o[^.!?\\n]*)(desconto|condi[cç][aã]o|promessa|pedido)(?:(?!n[aã]o)[^.!?\\n])*(est[aá]|fica|ficou|foi) (confirmad|garantid|concedid|aprovad)"
       }
     ],
     "criterios": [

@@ -228,6 +228,10 @@ async function acharCliente(porta: Porta, nome: string) {
 
 // ─── Cliente simulado ───────────────────────────────────────────────────────
 
+// Marcação técnica ou texto de bastidor no lugar da mensagem do cliente
+const MENSAGEM_INVALIDA =
+  /<\/?(invoke|function|parameter|antml)|antml:|segue a pr[oó]xima mensagem|chamada de ferramenta|cliente simulado|(como|sou) (a |o )?ia (que|simulando)/i
+
 type Custo = { usd: number; semPreco: boolean }
 
 class Simulador {
@@ -271,13 +275,24 @@ class Simulador {
       'REGRAS:',
       '- Escreva só a próxima mensagem do cliente, sem aspas, sem explicação, sem nome na frente.',
       '- Mensagens curtas, como no WhatsApp (até 3 frases).',
+      '- Você não tem ferramentas. Nunca escreva marcação, código nem comentário sobre a conversa: só o que o cliente digitaria.',
       '- Reaja ao que o atendente acabou de dizer, do seu jeito, sem sair do que acontece nesta conversa.',
       `- Quando a conversa chegar ao fim natural, responda só ${FIM}.`,
       `- A conversa tem no máximo ${maxTurnos} mensagens suas.`,
     ].join('\n')
   }
 
-  async proximaMensagem(cena: Cena, turnos: Turno[], maxTurnos: number) {
+  // Pede a próxima mensagem e descarta lixo técnico (marcação, comentário de bastidor),
+  // que nunca pode chegar ao atendente. Até 3 tentativas.
+  async proximaMensagem(cena: Cena, turnos: Turno[], maxTurnos: number): Promise<string> {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const texto = await this.gerar(cena, turnos, maxTurnos)
+      if (!MENSAGEM_INVALIDA.test(texto)) return texto
+    }
+    throw new Error('o cliente simulado gerou mensagem inválida 3 vezes seguidas')
+  }
+
+  private async gerar(cena: Cena, turnos: Turno[], maxTurnos: number): Promise<string> {
     // Do ponto de vista do simulador, o Concierge é o "user" e ele é o "assistant".
     // A primeira mensagem do simulador responde a um pedido de início.
     const mensagens = [

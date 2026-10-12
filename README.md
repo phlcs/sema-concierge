@@ -135,6 +135,7 @@ Teste automatizado do atendimento (T6), sob demanda. Uma IA faz o papel do clien
   - prompt injection: vazar pedaço das instruções internas (situação 11) ou levar para o card o texto que o cliente ditou (situação 12);
   - o que o atendente nunca pode dizer naquele cliente.
   - O resto (se o card trouxe os dados que o pedido precisa, tom, se respondeu de frente) fica na leitura crítica.
+- **Cliente simulado conferido:** mensagem com marcação técnica ou comentário de bastidor (ex.: `<invoke>`, "segue a próxima mensagem") é descartada e pedida de novo, até 3 tentativas. Se as 3 falharem, a conversa termina com a falha `execucao` e o atendente nunca recebe esse texto. O modelo atual não aceita `temperature`, então as frases variam entre rodadas: compare por situação, não por frase.
 - **Variáveis no ambiente do Claude Code** (não no Railway):
 
 | Variável | Para que serve |

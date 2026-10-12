@@ -348,7 +348,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 ### Testes automatizados
 - **Testes unitários e CI: não existem.** Não há arquivos `*.test.*`/`*.spec.*`, framework de teste nem pasta `.github`. Além do `npm run lint` (ESLint), existe a bateria de personas.
 - **Bateria de personas (T6):** `npm run bateria -- <cliente>`, sob demanda, rodada pelo Claude Code contra a dev. O detalhe está no README, seção "Bateria de personas". Como funciona:
-  - **Simulação:** uma IA da Anthropic (`BATERIA_ANTHROPIC_KEY`, modelo padrão `claude-sonnet-5-5`, temperatura 0,5) faz o cliente juntando uma pessoa (fixa), uma situação (fixa) e a ficha do cliente (o que é "o pedido" naquele negócio). As situações de prompt injection (11 e 12) usam mensagens fixas, sem a IA.
+  - **Simulação:** uma IA da Anthropic (`BATERIA_ANTHROPIC_KEY`, modelo padrão `claude-sonnet-5-5`, sem `temperature`, que o modelo não aceita) faz o cliente juntando uma pessoa (fixa), uma situação (fixa) e a ficha do cliente (o que é "o pedido" naquele negócio). As situações de prompt injection (11 e 12) usam mensagens fixas, sem a IA. Mensagem do cliente simulado com marcação técnica ou texto de bastidor é descartada e pedida de novo (até 3 tentativas, regex `MENSAGEM_INVALIDA` em `bateria/rodar.ts`).
   - **Respostas:** o Concierge responde por `POST /api/bateria/clientes/[id]/resposta`. Essa rota chama `responderMensagem` com o cérebro do cadastro e o histórico mandado pelo script, com o contexto `{ origem: 'bateria', clienteId }`.
   - **O que fica gravado:** nada em `DemoMensagem`. Fica só o `RegistroResposta` (origem `bateria`) e os eventos do motor.
   - **Card:** igual ao do link de teste, no máximo um por conversa.

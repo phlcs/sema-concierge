@@ -7,18 +7,31 @@ datasource db {
   provider = "postgresql"
 }
 
+// Cadastro único de prospect e cliente (T7). Prospect existe sem número de
+// WhatsApp, só com cérebro e link de teste; ao fechar a venda o mesmo cadastro
+// ganha o número e passa a ativo. Status: prospect | ativo | manutencao.
 model Cliente {
-  id             String                 @id @default(cuid())
-  nomeNegocio    String
-  phoneNumberId  String                 @unique
-  wabaId         String?
-  whatsappToken  String
-  emailPrestador String
-  cerebro        Json
-  status         String                 @default("ativo")
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  conversas      WhatsappConversation[]
+  id                   String                 @id @default(cuid())
+  nomeNegocio          String
+  phoneNumberId        String?                @unique
+  wabaId               String?
+  whatsappToken        String?
+  emailPrestador       String
+  cerebro              Json
+  status               String                 @default("ativo")
+  // Link de teste (/demo/{testeToken}): gerado na criação, bloqueado até ser liberado
+  testeToken           String                 @unique @default(dbgenerated("(md5((random())::text) || md5((random())::text))"))
+  // Nulo ou no passado = bloqueado
+  testeLiberadoAte     DateTime?
+  // Início da liberação atual: o limite de mensagens conta a partir daqui
+  testeLiberadoEm      DateTime?
+  testeLimiteMensagens Int                    @default(300)
+  // Número mostrado no topo do link de teste (não é usado para enviar nada)
+  numeroExibicao       String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  conversas            WhatsappConversation[]
+  mensagensTeste       DemoMensagem[]
 }
 
 model WhatsappConversation {
@@ -46,25 +59,31 @@ model WhatsappMessage {
   @@index([conversationId])
 }
 
-// Demo do Concierge para prospects (POC). Isolada do modelo de cliente real.
+// Tabela antiga de demos (T7): cada demo virou um Cliente "prospect" com o mesmo
+// id. Fica só como cópia de segurança; @@ignore tira do client do Prisma.
+// Apagar numa limpeza futura, depois de confirmar a migração.
 model Demo {
-  id              String         @id @default(cuid())
+  id              String   @id
   nomeNegocio     String
   numeroExibicao  String
   emailExibicao   String
   cerebro         Json
-  token           String         @unique
+  token           String   @unique
   expiraEm        DateTime
-  status          String         @default("ativo")
-  limiteMensagens Int            @default(300)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  mensagens       DemoMensagem[]
+  status          String   @default("ativo")
+  limiteMensagens Int      @default(300)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+
+  @@ignore
 }
 
+// Mensagens do link de teste. A tabela "Demo" antiga continua no banco só como
+// cópia de segurança (T7) e não é usada pelo código; demoId fica como histórico.
 model DemoMensagem {
   id           String      @id @default(cuid())
-  demoId       String
+  clienteId    String
+  demoId       String?
   sessaoId     String
   role         MessageRole
   texto        String
@@ -73,9 +92,9 @@ model DemoMensagem {
   leadIntencao String?
   leadResumo   String?
   createdAt    DateTime    @default(now())
-  demo         Demo        @relation(fields: [demoId], references: [id])
+  cliente      Cliente     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
-  @@index([demoId, sessaoId, createdAt])
+  @@index([clienteId, sessaoId, createdAt])
 }
 
 // Eventos operacionais (T5). Sem relação com Cliente de propósito: o registro

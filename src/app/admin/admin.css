@@ -287,6 +287,13 @@
   background: rgba(244, 246, 236, 0.35);
 }
 
+.sema-admin .link-teste {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
 .sema-admin .toggle-cell {
   display: inline-flex;
   align-items: center;

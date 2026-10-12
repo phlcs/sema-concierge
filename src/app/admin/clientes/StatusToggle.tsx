@@ -21,6 +21,11 @@ export default function StatusToggle({ id, nomeNegocio, status }: Props) {
 
   const togglable = statusLocal === ATIVO || statusLocal === MANUTENCAO
 
+  // Prospect não tem WhatsApp: passa a ativo quando ganhar o número (T7)
+  if (statusLocal === 'prospect') {
+    return <span className="muted">Sem WhatsApp</span>
+  }
+
   if (!togglable) {
     return <span className="muted">Trava: não alternável aqui</span>
   }

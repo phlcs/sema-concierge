@@ -99,7 +99,7 @@ npm run dev
 
 Scripts: `dev`, `build`, `start` (roda `prisma migrate deploy` antes), `lint` e `seed` (o `prisma/seed.ts` está vazio). Não há testes automatizados nem CI.
 
-Clientes e demos não têm tela de criação: são inseridos direto no banco. A cada boot, `src/instrumentation.ts` cria um cliente "Teste".
+Clientes não têm tela de criação: são inseridos direto no banco. Prospect e cliente são o mesmo cadastro (`Cliente`): o prospect existe sem número de WhatsApp (`status: prospect`) e, quando fecha, ganha o `phoneNumberId` e passa a `ativo`. Todo cliente tem um link de teste (`/demo/{testeToken}`), gerado automaticamente e bloqueado até ser liberado no admin (7 dias por vez).
 
 ## Deploy
 

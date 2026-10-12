@@ -267,7 +267,7 @@ async function tratarTurno(args: {
 
     await enviarTexto({
       token: process.env.WHATSAPP_TOKEN ?? '',
-      phoneNumberId: cliente.phoneNumberId,
+      phoneNumberId,
       para: deNumero,
       mensagem,
       clienteId: cliente.id,
@@ -312,7 +312,7 @@ async function tratarTurno(args: {
   if (mensagens.length === 0) {
     await enviarTexto({
       token: process.env.WHATSAPP_TOKEN ?? '',
-      phoneNumberId: cliente.phoneNumberId,
+      phoneNumberId,
       para: deNumero,
       mensagem: frases || FRASE_MIDIA,
       clienteId: cliente.id,
@@ -353,7 +353,7 @@ async function tratarTurno(args: {
 
   await enviarTexto({
     token: process.env.WHATSAPP_TOKEN ?? '',
-    phoneNumberId: cliente.phoneNumberId,
+    phoneNumberId,
     para: deNumero,
     mensagem,
     clienteId: cliente.id,

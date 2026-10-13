@@ -141,8 +141,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     createdAt: recebidaEm,
   })
 
-  // Encaminhamento: nenhum email é enviado; o card do último registrado no turno vai
-  // pra tela. O limite (3 novos por dia) é o mesmo do WhatsApp, conferido pela ferramenta.
+  // Encaminhamento: nenhum email é enviado; o card do último registrado no turno (novo,
+  // atualização ou cancelamento) vai pra tela. Os limites do dia são os mesmos do
+  // WhatsApp, conferidos pelas ferramentas.
   const respondidaEm = new Date(Math.max(Date.now(), recebidaEm.getTime() + 1))
   let handoff: CardHandoff | null = null
   const registrado = encaminhamentos.at(-1)
@@ -163,15 +164,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     handoff: lead,
   })
 
-  if (lead) {
+  if (registrado) {
     handoff = montarCardHandoff({
       emailExibicao: demo.emailExibicao,
+      remetente: demo.remetenteExibicao,
       nomeNegocio: demo.nomeNegocio,
-      ...lead,
-      campos: registrado?.campos ?? [],
+      encaminhamento: registrado,
       quando: respondidaEm,
     })
-    logger.info('demo: handoff', { clienteId: demo.id, sessaoId })
+    logger.info('demo: encaminhamento', { clienteId: demo.id, sessaoId, tipo: registrado.tipo })
   }
 
   logger.info('demo: mensagem', {

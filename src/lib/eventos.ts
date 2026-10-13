@@ -72,6 +72,11 @@ const CATALOGO = {
     evento: 'Limite diário de encaminhamentos atingido',
     gravidade: 'Aviso',
   },
+  encaminhamento_destino_desconhecido: {
+    tema: 'Encaminhamento',
+    evento: 'Destino do encaminhamento não implementado',
+    gravidade: 'Erro',
+  },
   encaminhamento_mock: {
     tema: 'Encaminhamento',
     evento: 'Encaminhamento em modo de teste (mock)',

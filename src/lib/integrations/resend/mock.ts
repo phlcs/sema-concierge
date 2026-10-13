@@ -1,8 +1,9 @@
 import { logger } from '@/lib/logger'
+import { assuntoEncaminhamento } from '@/lib/atendimento/pacote'
 import type {
   ResendAdapter,
   BookingConfirmationInput,
-  HandoffInput,
+  EncaminhamentoEmail,
   EmailResult,
 } from './types'
 
@@ -12,18 +13,22 @@ export const resendMock: ResendAdapter = {
     return { id, success: true }
   },
 
-  async enviarHandoff(input: HandoffInput): Promise<EmailResult> {
-    const id = `mock-handoff-${crypto.randomUUID().slice(0, 8)}`
-    logger.info('[resend mock] enviarHandoff', {
+  async enviarEncaminhamento(input: EncaminhamentoEmail): Promise<EmailResult> {
+    const id = `mock-encaminhamento-${crypto.randomUUID().slice(0, 8)}`
+    const { pacote } = input
+    logger.info('[resend mock] enviarEncaminhamento', {
       id,
-      emailPrestador: input.emailPrestador,
-      nomeNegocio: input.nomeNegocio,
-      leadNome: input.leadNome,
-      leadContato: input.leadContato,
-      leadIntencao: input.leadIntencao,
-      leadResumo: input.leadResumo,
-      campos: input.campos,
-      quando: input.quando.toISOString(),
+      para: input.para,
+      remetente: input.remetente,
+      assunto: assuntoEncaminhamento(pacote),
+      tipo: pacote.tipo,
+      nomeNegocio: pacote.nomeNegocio,
+      contato: pacote.contato,
+      campos: pacote.campos,
+      resumo: pacote.resumo,
+      mudou: pacote.mudou,
+      alteracoes: pacote.alteracoes,
+      quando: pacote.quando.toISOString(),
     })
     return { id, success: true }
   },

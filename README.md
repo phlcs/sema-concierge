@@ -1,6 +1,6 @@
 # Concierge (Sema)
 
-Assistente de atendimento por WhatsApp para prestadores de serviço. Cada prestador é um `Cliente` com um "cérebro" (JSON com serviços, preços, horários e regras). O robô responde quem escreve para o número do prestador, usa só o que está no cérebro e, quando o caso pede, manda um e-mail de handoff com os dados do lead. Existe também uma demo web para prospects e um painel admin para cadastrar clientes, editar o cérebro e ler conversas.
+Assistente de atendimento por WhatsApp para prestadores de serviço. Cada prestador é um `Cliente` com um "cérebro" (JSON com serviços, preços, horários e regras). O robô responde quem escreve para o número do prestador, usa só o que está no cérebro e, quando o caso pede, encaminha o pedido para a equipe do prestador por e-mail (e avisa quando o pedido muda ou é cancelado). Existe também uma demo web para prospects e um painel admin para cadastrar clientes, editar o cérebro e ler conversas.
 
 Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis), veja [`RAIO_X.md`](./RAIO_X.md).
 
@@ -13,7 +13,7 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 - Tailwind CSS 4
 - IA: Anthropic, Gemini ou OpenAI, escolhida por `AI_PROVIDER`
 - WhatsApp Cloud API da Meta, direto, sem BSP
-- E-mail de handoff: Resend (adapter com modo `mock` e `real`)
+- E-mail de encaminhamento: Resend (adapter com modo `mock` e `real`)
 - Deploy: Railway (servidor Node persistente, `next start`)
 
 ## Fluxo de uma mensagem
@@ -26,21 +26,29 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens, monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
 7. A mensagem do contato e a resposta são gravadas e a resposta é enviada pela Graph API (`enviarTexto`).
 8. Palavras-chave sensíveis marcam a conversa para revisão (`revisar`).
-9. Cada encaminhamento registrado pela ferramenta no turno vira um e-mail ao prestador (ver "Encaminhamento" abaixo).
+9. Cada encaminhamento registrado pelas ferramentas no turno (novo, atualização ou cancelamento) vai para o destino do cadastro, hoje o e-mail (ver "Encaminhamento" abaixo).
 
-## Encaminhamento (T9)
+## Encaminhamento (T9, T10)
 
-O encaminhamento é uma **ferramenta** da IA (`registrar_pedido`), não um campo da resposta. O código decide primeiro; a IA escreve depois, já sabendo o resultado.
+O encaminhamento é feito por **ferramentas** da IA (`registrar_pedido`, `atualizar_pedido`, `cancelar_pedido`), não por um campo da resposta. O código decide primeiro; a IA escreve depois, já sabendo o resultado.
 
 - A IA chama a ferramenta com os campos do pedido do cliente (lista do cadastro, T8), uma intenção e um resumo. Cliente sem lista de campos: só o nome é obrigatório.
 - O código confere os campos obrigatórios e o limite do dia e devolve `registrado`, `faltando: X` ou `limite atingido`. Só então a IA responde ao lead. Formato do campo (data válida, número) ainda não é conferido; data vaga fica vazia por instrução da ferramenta.
 - **Limite:** até 3 encaminhamentos novos por dia por conversa, no dia do calendário de Brasília; à meia-noite libera mais 3. Substitui o antigo bloqueio de 24h. Vale no WhatsApp, no link de teste e na bateria.
-- Os encaminhamentos ficam na tabela `Encaminhamento` e aparecem para a IA nos dados do momento (o que já foi registrado, com horário, e quantos novos hoje).
-- Depois de enviada a resposta, cada encaminhamento registrado vira um e-mail (WhatsApp) ou o card da tela (link de teste). Se o e-mail falhar, a IA já terá dito que encaminhou: fica o evento de falha.
+- **Atualizar e cancelar (T10):** quando a pessoa muda um dado de um pedido já registrado (outro horário, mais pessoas), a IA chama `atualizar_pedido` só com o que mudou; quando desiste, `cancelar_pedido`. Os dois valem para o **último pedido ativo** da conversa (o mais recente não cancelado); sem pedido ativo a ferramenta responde `sem pedido ativo`. A atualização grava o pedido inteiro como ficou (campos mesclados). Respostas: `atualizado`, `cancelado`, `nada mudou`, `sem pedido ativo`, `limite atingido`.
+- **Teto de mudanças:** até 5 atualizações e cancelamentos por dia por conversa, à parte do limite de 3 novos (que só conta pedidos novos).
+- Os encaminhamentos ficam na tabela `Encaminhamento` (com o `tipo`: `novo`, `atualizacao`, `cancelamento`) e aparecem para a IA nos dados do momento: o que já foi registrado, o pedido ativo e as contagens do dia.
+- **Pacote e destino (T10):** cada encaminhamento vira um pacote padrão (tipo, contato, campos do cliente, resumo, o que mudou), independente do destino (`src/lib/atendimento/pacote.ts`). O destino vem do cadastro (`Cliente.destinoEncaminhamento`) e é escolhido em `src/lib/atendimento/destino.ts`; só `email` existe. Destino novo entra ali, sem mexer em conversa, modo ou limite. Destino desconhecido gera o evento "Destino do encaminhamento não implementado".
+- **E-mail (T10):** sem o conceito de "lead".
+  - Assunto: tipo + nome do contato. Ex.: "Novo encaminhamento: Marcos", "Atualização de encaminhamento: Marcos, mudou horário", "Cancelamento de encaminhamento: Marcos". Sem nome, vai o telefone ("contato 55219..."). Nome e lista de campos mudados cortados em 60 caracteres.
+  - Remetente: `Cliente.nomeRemetente` (vazio = "Concierge <nome do negócio>"), com o endereço de `RESEND_FROM_EMAIL`.
+  - Corpo: na atualização, "O que mudou" em destaque no topo (frase da IA e cada campo "antes → depois"); no cancelamento, o motivo. Depois, os campos do pedido na ordem do cadastro, contato, resumo e quando. Sem histórico da conversa e sempre em português.
+- **Bateria:** a porta devolve também `registrados` (tudo que as ferramentas registraram no turno, com o tipo); o roteiro reenvia na rodada seguinte, para a IA ver o pedido ativo. O card avaliado continua sendo o do encaminhamento novo.
+- Depois de enviada a resposta, cada encaminhamento registrado vai para o destino (WhatsApp) ou vira o card da tela (link de teste, com o mesmo assunto e corpo do e-mail). Se o envio falhar, a IA já terá dito que encaminhou: fica o evento de falha.
 - O filtro de vazamento só troca o texto da resposta; nunca desfaz um encaminhamento já registrado.
 - **Só OpenAI** (`AI_PROVIDER=openai`): com Anthropic ou Gemini a ferramenta não é oferecida e o robô não encaminha. A OpenAI é chamada pela Responses API (`/v1/responses`): o `chat.completions` recusa ferramenta junto com raciocínio.
 - **Rede de segurança:** se a OpenAI recusar a chamada com ferramenta (erro 400), o código responde sem ela. O lead não fica sem resposta, o encaminhamento daquele turno se perde e fica o evento "Erro do provedor de IA" com o motivo.
-- Eventos: `Encaminhamento enviado`, `Encaminhamento recusado por campo faltando`, `Limite diário de encaminhamentos atingido`.
+- Eventos: `Encaminhamento enviado` (com o `tipo` no detalhe), `Encaminhamento recusado por campo faltando`, `Limite diário de encaminhamentos atingido` (com a ferramenta no detalhe), `Destino do encaminhamento não implementado`.
 - Cada encaminhamento custa uma ida e volta a mais à IA (duas chamadas, tokens somados no registro técnico).
 
 ## Rotas
@@ -87,7 +95,7 @@ Modelo em [`.env.example`](./.env.example).
 | `OPENAI_API_KEY` | Chave usada na transcrição de áudio, qualquer que seja o `AI_PROVIDER` (com `AI_PROVIDER=openai`, a `AI_API_KEY` também serve) |
 | `REDIS_URL` | Redis (healthcheck) |
 | `RESEND_MODE` | `mock` (padrão, só loga) ou `real` |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de handoff no modo `real` |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de encaminhamento no modo `real`. O nome do remetente vem do cadastro do cliente |
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
 | `BATERIA_TOKEN` | Senha da porta da bateria de personas (mínimo 32 caracteres). Só no ambiente de dev. Vazia = porta desligada |
 
@@ -184,7 +192,7 @@ Railway, com ambiente `staging` ligado à branch `dev`. Configure as variáveis 
 ## Código que existe mas não é usado
 
 - Integração Kiwify (`src/lib/integrations/kiwify/`): não é importada por nenhuma rota.
-- `sendBookingConfirmation` (`src/lib/integrations/resend/`): sem chamador; no modo `real` lança "não implementado". Só `enviarHandoff` é usado.
+- `sendBookingConfirmation` (`src/lib/integrations/resend/`): sem chamador; no modo `real` lança "não implementado". Só `enviarEncaminhamento` é usado.
 - Campos `checklist` e `steps` da resposta da IA (`src/lib/ai/schema.ts`): o prompt manda ficarem `null` e nada os exibe.
 - Campo `Cliente.whatsappToken`: o envio usa `WHATSAPP_TOKEN`.
 

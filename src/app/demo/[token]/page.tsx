@@ -51,11 +51,9 @@ export default async function DemoPage({ params }: { params: Promise<{ token: st
   const handoff = salvo
     ? montarCardHandoff({
         emailExibicao: acesso.demo.emailExibicao,
+        remetente: acesso.demo.remetenteExibicao,
         nomeNegocio,
-        leadNome: salvo.leadNome,
-        leadIntencao: salvo.leadIntencao,
-        leadResumo: salvo.leadResumo,
-        campos: salvo.campos,
+        encaminhamento: salvo,
         quando: salvo.createdAt,
       })
     : null

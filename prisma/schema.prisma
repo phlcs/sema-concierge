@@ -28,8 +28,8 @@ model Cliente {
   testeLimiteMensagens  Int                    @default(300)
   // Número mostrado no topo do link de teste (não é usado para enviar nada)
   numeroExibicao        String?
-  // Cadastro de funcionamento (T8), fora do cérebro. Ainda não lidos pelo
-  // atendimento: T9 usa camposPedido, T10 remetente e destino, T12 modo e fallback.
+  // Cadastro de funcionamento (T8), fora do cérebro. camposPedido (T9), remetente e
+  // destino (T10) já são lidos pelo atendimento; modo e fallback ficam para a T12.
   // conversao | hospitalidade | resolucao. Nulo = não definido (cliente anterior à T8)
   modo                  String?
   // [{ nome, obrigatorio }], na ordem do cadastro
@@ -81,10 +81,15 @@ model Encaminhamento {
   clienteId  String
   conversaId String?
   sessaoId   String?
-  // [{ nome, valor }], na ordem do cadastro
+  // novo | atualizacao | cancelamento (T10)
+  tipo       String                @default("novo")
+  // [{ nome, valor }], na ordem do cadastro. Na atualização e no cancelamento,
+  // o pedido inteiro como ficou (campos já mesclados)
   campos     Json
   intencao   String?
   resumo     String?
+  // Atualização: o que mudou, nas palavras da IA. Cancelamento: o motivo
+  mudou      String?
   createdAt  DateTime              @default(now())
   cliente    Cliente               @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   conversa   WhatsappConversation? @relation(fields: [conversaId], references: [id], onDelete: Cascade)

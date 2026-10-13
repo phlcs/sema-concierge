@@ -93,7 +93,15 @@ type Card = {
 }
 
 // Encaminhamento já registrado, reenviado à porta a cada turno (T9): a porta não grava nada
-type EncaminhamentoAnterior = { campos: Campo[]; intencao: string | null; resumo: string | null; em: string }
+type TipoEncaminhamento = 'novo' | 'atualizacao' | 'cancelamento'
+type EncaminhamentoAnterior = {
+  tipo: TipoEncaminhamento
+  campos: Campo[]
+  intencao: string | null
+  resumo: string | null
+  mudou: string | null
+  em: string
+}
 
 type Turno =
   | { role: 'user'; texto: string }
@@ -133,6 +141,8 @@ type RespostaPorta = {
   leadIntencao: string | null
   leadResumo: string | null
   campos: Campo[] | null
+  // Tudo que as ferramentas registraram no turno (novo, atualização, cancelamento; T10)
+  registrados?: Omit<EncaminhamentoAnterior, 'em'>[]
   bloqueio: string | null
   provedor: string | null
   modelo: string | null
@@ -546,14 +556,8 @@ async function conversar(args: {
       args.versao.modelo ??= r.modelo
       args.versao.versaoPrompt ??= r.versaoPrompt
 
-      if (r.encaminhou) {
-        encaminhamentos.push({
-          campos: r.campos ?? [],
-          intencao: r.leadIntencao,
-          resumo: r.leadResumo,
-          em: new Date().toISOString(),
-        })
-      }
+      // Tudo que foi registrado volta na rodada seguinte, para a IA ver o pedido ativo
+      for (const e of r.registrados ?? []) encaminhamentos.push({ ...e, em: new Date().toISOString() })
       // O card avaliado é o do primeiro encaminhamento; os seguintes ficam marcados no turno
       const novoCard = r.encaminhou && !card
       if (novoCard) {

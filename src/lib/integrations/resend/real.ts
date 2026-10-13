@@ -1,9 +1,9 @@
 import type {
   ResendAdapter,
-  HandoffInput,
+  EncaminhamentoEmail,
   EmailResult,
 } from './types'
-import { assuntoHandoff, camposDoLead } from './handoff-campos'
+import { assuntoEncaminhamento, corpoEncaminhamento } from '@/lib/atendimento/pacote'
 
 function escapeHtml(value: string): string {
   return value
@@ -14,17 +14,35 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function montarHtml(input: HandoffInput): string {
-  const c = camposDoLead(input)
+function montarHtml(input: EncaminhamentoEmail): string {
+  const corpo = corpoEncaminhamento(input.pacote)
   const fontStack = "Arial, Helvetica, sans-serif"
 
-  const linha = (rotulo: string, valor: string, destaque = false) => `
+  const linha = (rotulo: string, valor: string) => `
               <tr>
                 <td style="padding: 10px 0; border-bottom: 1px solid #E4E8D6;">
                   <div style="font-family: ${fontStack}; font-size: 12px; color: #32572C; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">${escapeHtml(rotulo)}</div>
-                  <div style="font-family: ${fontStack}; font-size: ${destaque ? '18px' : '15px'}; color: #0E1F0F; font-weight: ${destaque ? '700' : '400'}; line-height: 1.4;">${escapeHtml(valor)}</div>
+                  <div style="font-family: ${fontStack}; font-size: 15px; color: #0E1F0F; line-height: 1.4;">${escapeHtml(valor)}</div>
                 </td>
               </tr>`
+
+  // O que mudou (atualização) ou o motivo (cancelamento), em destaque no topo
+  const destaque = corpo.destaque
+    ? `
+            <tr>
+              <td style="padding: 8px 28px 0 28px;">
+                <div style="background-color: #F4F6EC; border-left: 3px solid #91A955; padding: 12px 16px;">
+                  <div style="font-family: ${fontStack}; font-size: 12px; color: #32572C; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">${escapeHtml(corpo.destaque.rotulo)}</div>
+                  ${corpo.destaque.itens
+                    .map(
+                      (item) =>
+                        `<div style="font-family: ${fontStack}; font-size: 16px; color: #0E1F0F; font-weight: 700; line-height: 1.4;">${escapeHtml(item)}</div>`,
+                    )
+                    .join('')}
+                </div>
+              </td>
+            </tr>`
+    : ''
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -35,19 +53,14 @@ function montarHtml(input: HandoffInput): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #FFFFFF; border: 1px solid #E4E8D6; border-top: 3px solid #91A955;">
             <tr>
               <td style="padding: 24px 28px 8px 28px;">
-                <div style="font-family: ${fontStack}; font-size: 11px; color: #32572C; text-transform: uppercase; letter-spacing: 0.08em;">Sema</div>
-                <div style="font-family: ${fontStack}; font-size: 20px; color: #142A15; font-weight: 700; margin-top: 4px;">Novo lead</div>
+                <div style="font-family: ${fontStack}; font-size: 11px; color: #32572C; text-transform: uppercase; letter-spacing: 0.08em;">${escapeHtml(input.pacote.nomeNegocio)}</div>
+                <div style="font-family: ${fontStack}; font-size: 20px; color: #142A15; font-weight: 700; margin-top: 4px;">${escapeHtml(corpo.titulo)}</div>
               </td>
-            </tr>
+            </tr>${destaque}
             <tr>
               <td style="padding: 8px 28px 24px 28px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  ${linha('Nome', c.nome, true)}
-                  ${linha('Contato', c.contato)}
-                  ${linha('O que quer', c.intencao)}
-                  ${input.campos.map((campo) => linha(campo.nome, campo.valor)).join('')}
-                  ${linha('Resumo', c.resumo)}
-                  ${linha('Quando', c.quando)}
+                  ${corpo.linhas.map((l) => linha(l.rotulo, l.valor)).join('')}
                 </table>
               </td>
             </tr>
@@ -59,17 +72,13 @@ function montarHtml(input: HandoffInput): string {
 </html>`
 }
 
-function montarTexto(input: HandoffInput): string {
-  const c = camposDoLead(input)
+function montarTexto(input: EncaminhamentoEmail): string {
+  const corpo = corpoEncaminhamento(input.pacote)
   return [
-    'Novo lead',
+    corpo.titulo,
     '',
-    `Nome: ${c.nome}`,
-    `Contato: ${c.contato}`,
-    `O que quer: ${c.intencao}`,
-    ...input.campos.map((campo) => `${campo.nome}: ${campo.valor}`),
-    `Resumo: ${c.resumo}`,
-    `Quando: ${c.quando}`,
+    ...(corpo.destaque ? [`${corpo.destaque.rotulo}:`, ...corpo.destaque.itens.map((i) => `- ${i}`), ''] : []),
+    ...corpo.linhas.map((l) => `${l.rotulo}: ${l.valor}`),
   ].join('\n')
 }
 
@@ -78,7 +87,7 @@ export const resendReal: ResendAdapter = {
     throw new Error('[resend real] sendBookingConfirmation não implementado')
   },
 
-  async enviarHandoff(input: HandoffInput): Promise<EmailResult> {
+  async enviarEncaminhamento(input: EncaminhamentoEmail): Promise<EmailResult> {
     const apiKey = process.env.RESEND_API_KEY
     const from = process.env.RESEND_FROM_EMAIL
 
@@ -90,9 +99,9 @@ export const resendReal: ResendAdapter = {
     }
 
     const body = {
-      from: `Sema <${from}>`,
-      to: input.emailPrestador,
-      subject: assuntoHandoff(input.quando),
+      from: `${input.remetente} <${from}>`,
+      to: input.para,
+      subject: assuntoEncaminhamento(input.pacote),
       html: montarHtml(input),
       text: montarTexto(input),
     }
@@ -108,7 +117,7 @@ export const resendReal: ResendAdapter = {
 
     if (!res.ok) {
       const texto = await res.text().catch(() => '')
-      throw new Error(`[resend real] falha ao enviar handoff: status=${res.status} resposta=${texto}`)
+      throw new Error(`[resend real] falha ao enviar encaminhamento: status=${res.status} resposta=${texto}`)
     }
 
     const data = (await res.json()) as { id?: string }

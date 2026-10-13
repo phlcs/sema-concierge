@@ -22,15 +22,12 @@ import {
   carregarHistorico,
   salvarMensagem,
 } from '@/lib/whatsapp/conversa'
-import { resend, resendModo } from '@/lib/integrations/resend'
 import { registrarEvento, resumoErro } from '@/lib/eventos'
 import type { ContextoRegistro } from '@/lib/ai/registro'
 import { precisaRevisar } from '@/lib/qa/keywords'
-import {
-  nomeDoPedido,
-  portaWhatsapp,
-  type NovoEncaminhamento,
-} from '@/lib/atendimento/encaminhamento'
+import { portaWhatsapp, type EncaminhamentoRegistrado } from '@/lib/atendimento/encaminhamento'
+import { montarPacote } from '@/lib/atendimento/pacote'
+import { entregarEncaminhamento, type ClienteDestino } from '@/lib/atendimento/destino'
 
 // Evento de assinatura recusada: no máximo 1 por minuto por processo, para que uma
 // enxurrada de chamadas falsas ao webhook não encha a tabela (o log registra todas)
@@ -387,72 +384,75 @@ async function tratarTurno(args: {
     })
   }
 
-  // E-mail de cada encaminhamento registrado pela ferramenta neste turno (T9). A
-  // resposta ao lead já saiu: se o e-mail falhar, fica o evento de erro.
+  // Cada encaminhamento registrado pelas ferramentas neste turno (novo, atualização,
+  // cancelamento) vai para o destino do cadastro (T10). A resposta à pessoa já saiu:
+  // se a entrega falhar, fica o evento de erro.
   for (const encaminhamento of encaminhamentos) {
     try {
       await enviarEncaminhamento({ encaminhamento, conversaId, cliente, numeroContato })
     } catch (err) {
-      logger.error('webhook: erro no handoff por email', {
+      logger.error('webhook: erro na entrega do encaminhamento', {
+        tipo: encaminhamento.tipo,
         erro: err instanceof Error ? err.message : String(err),
       })
       await registrarEvento('encaminhamento_falha_email', {
         clienteId: cliente.id,
-        detalhe: { conversaId, ...resumoErro(err) },
+        detalhe: { conversaId, tipo: encaminhamento.tipo, ...resumoErro(err) },
       })
     }
   }
 }
 
 async function enviarEncaminhamento(args: {
-  encaminhamento: NovoEncaminhamento
+  encaminhamento: EncaminhamentoRegistrado
   conversaId: string
-  cliente: { id: string; nomeNegocio: string; emailPrestador: string }
+  cliente: ClienteDestino
   numeroContato: string
 }): Promise<void> {
   const { encaminhamento, conversaId, cliente, numeroContato } = args
   const agora = new Date()
-  const leadNome = nomeDoPedido(encaminhamento.campos)
-
-  const result = await resend.enviarHandoff({
-    emailPrestador: cliente.emailPrestador,
+  const pacote = montarPacote({
     nomeNegocio: cliente.nomeNegocio,
-    leadNome,
-    leadContato: numeroContato,
-    leadIntencao: encaminhamento.intencao,
-    leadResumo: encaminhamento.resumo,
-    campos: encaminhamento.campos,
+    contato: numeroContato,
+    encaminhamento,
     quando: agora,
   })
 
-  if (result.success) {
-    await prisma.whatsappConversation.update({
-      where: { id: conversaId },
-      data: { handoffEm: agora },
-    })
-    logger.info('handoff enviado', {
+  const r = await entregarEncaminhamento({ cliente, pacote, conversaId })
+  if (r.ok) {
+    // handoffEm marca a conversa na lista do admin: só o encaminhamento novo
+    if (pacote.tipo === 'novo') {
+      await prisma.whatsappConversation.update({
+        where: { id: conversaId },
+        data: { handoffEm: agora },
+      })
+    }
+    logger.info('encaminhamento entregue', {
       conversaId,
-      emailId: result.id,
+      tipo: pacote.tipo,
+      destino: r.destino,
+      id: r.id,
       emailPrestador: cliente.emailPrestador,
-      leadNome,
-      leadContato: numeroContato,
-      leadIntencao: encaminhamento.intencao,
-      leadResumo: encaminhamento.resumo,
-      campos: encaminhamento.campos,
+      nomeContato: pacote.nomeContato,
+      contato: numeroContato,
+      campos: pacote.campos,
+      resumo: pacote.resumo,
+      mudou: pacote.mudou,
     })
-    // O e-mail do prestador e os dados do lead ficam só no log; o evento leva ids
-    await registrarEvento(resendModo === 'real' ? 'encaminhamento_enviado' : 'encaminhamento_mock', {
+    // O e-mail do prestador e os dados do contato ficam só no log; o evento leva ids
+    await registrarEvento(r.modo === 'real' ? 'encaminhamento_enviado' : 'encaminhamento_mock', {
       clienteId: cliente.id,
-      detalhe: { conversaId, emailId: result.id },
+      detalhe: { conversaId, tipo: pacote.tipo, destino: r.destino, emailId: r.id },
     })
-  } else {
-    logger.warn('handoff falhou (success=false)', {
+  } else if (r.motivo === 'success_false') {
+    logger.warn('encaminhamento falhou (success=false)', {
       conversaId,
-      emailId: result.id,
+      tipo: pacote.tipo,
+      emailId: r.id,
     })
     await registrarEvento('encaminhamento_falha_email', {
       clienteId: cliente.id,
-      detalhe: { conversaId, emailId: result.id, motivo: 'success_false' },
+      detalhe: { conversaId, tipo: pacote.tipo, emailId: r.id ?? null, motivo: 'success_false' },
     })
   }
 }

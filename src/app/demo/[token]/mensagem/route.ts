@@ -132,6 +132,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     carregarHistorico: () => carregarHistoricoDemo(demo.id, sessaoId),
     carregarResumo: () => carregarResumoDemo(demo.id, sessaoId),
     contexto,
+    cadastro: { modo: demo.modo, canaisFallback: demo.canaisFallback },
     encaminhamento: { camposPedido: demo.camposPedido, porta: portaTeste(demo.id, sessaoId) },
   })
 

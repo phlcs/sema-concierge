@@ -85,6 +85,8 @@ export async function responderMensagem(args: {
   contexto: ContextoRegistro
   // Lista de campos do pedido do cliente (T8) e onde guardar os encaminhamentos (T9)
   encaminhamento: { camposPedido: unknown; porta: PortaEncaminhamento }
+  // Modo e canais de fallback do cadastro (T8), lidos pelo prompt (T12)
+  cadastro: { modo: unknown; canaisFallback: unknown }
 }): Promise<ResultadoMotor> {
   const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico, contexto } = args
   const itens = mensagens.map((m) => (typeof m === 'string' ? { texto: m, deAudio: false } : m))
@@ -130,9 +132,9 @@ export async function responderMensagem(args: {
   const ultimaMensagemPessoaEm =
     history.findLast((m) => m.role === 'user' && m.createdAt)?.createdAt ?? null
 
-  // Ordem: prompt base + cérebro (fixo, cacheável), dados do momento, estado, resumo,
-  // continuação/anúncio, histórico
-  const systemPrompt = buildPrestadorPrompt(cerebro)
+  // Ordem: prompt base, modo, cérebro e canais (fixo por cliente, cacheável), dados do
+  // momento, estado, resumo, continuação/anúncio, histórico
+  const systemPrompt = buildPrestadorPrompt(cerebro, args.cadastro)
   let systemPromptMomento = buildDadosDoMomento({ agora, ultimaMensagemPessoaEm })
   systemPromptMomento += `\n\n${blocoEstado(feitos, agora)}`
   if (resumo) systemPromptMomento += blocoResumo(resumo)

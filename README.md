@@ -23,7 +23,7 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 3. O servidor responde `200` e processa em seguida. Texto e áudio são tratados: o áudio é baixado pelo media ID, transcrito e entra no turno como texto (ver "Áudio" abaixo). Imagem, documento e vídeo recebem uma frase fixa pedindo texto; os demais tipos são descartados.
 4. O `Cliente` é localizado pelo `phone_number_id`. Status `manutencao` responde com texto fixo; qualquer status diferente de `ativo` não responde.
 5. `normalizarNumero()` define a chave da conversa. Números do Brasil (começam com 55) recebem a regra do nono dígito; os demais são usados exatamente como a Meta enviou.
-6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens e o resumo das mais antigas (ver "Resumo de conversa longa" abaixo), monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
+6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens e o resumo das mais antigas (ver "Resumo de conversa longa" abaixo), monta o prompt (prompt base, texto do modo, cérebro e canais do cliente) e chama a IA. Qualquer erro vira uma resposta de fallback.
 7. A mensagem do contato e a resposta são gravadas e a resposta é enviada pela Graph API (`enviarTexto`).
 8. Palavras-chave sensíveis marcam a conversa para revisão (`revisar`).
 9. Cada encaminhamento registrado pelas ferramentas no turno (novo, atualização ou cancelamento) vai para o destino do cadastro, hoje o e-mail (ver "Encaminhamento" abaixo).
@@ -145,13 +145,26 @@ Clientes são criados e editados no admin: botão **Novo cliente** em `/admin/cl
 A tela tem, numa página só:
 
 - **Nome do negócio** e **modo** (conversão, hospitalidade ou resolução).
-- **Cérebro** em JSON. Só os nomes das chaves são conferidos: chave fora da lista (`src/lib/cerebro/chaves.ts`, as 12 que o prompt lê hoje) é recusada com o nome dela. Sem checagem de tipo nem de campo vazio. Quando o formato do cérebro mudar (T12/T13), a lista muda junto.
+- **Cérebro** em JSON, só com fatos do cliente (formato da T12, ver "Prompt base e modos" abaixo). Só os nomes das chaves são conferidos: chave fora da lista (`src/lib/cerebro/chaves.ts`, as 13 que o prompt lê) é recusada com o nome dela. Sem checagem de tipo nem de campo vazio.
 - **Campos do pedido**: nome + obrigatório, na ordem do e-mail. Usados pela ferramenta de encaminhamento (T9).
 - **E-mail que recebe os encaminhamentos**, **remetente** (vazio = "Concierge [nome do negócio]") e **destino** (só e-mail por enquanto).
 - **Canais de fallback**: o principal é obrigatório; SAC, RH, compras, imprensa/parcerias e contato rápido são opcionais. Cada um com tipo (e-mail, telefone, WhatsApp, outro) e contato.
 - **WhatsApp** (opcional): ID do número na Meta, ID da conta e número exibido no link de teste. Cliente ativo não pode ficar sem o ID do número.
 
-Os campos do pedido já valem no atendimento (T9). Modo, remetente, destino e fallback ficam gravados mas **ainda não mudam o atendimento**: entram na T10 (remetente e destino) e T12 (modo e fallback).
+Todos os campos já valem no atendimento: campos do pedido (T9), remetente e destino (T10), modo e canais de fallback (T12).
+
+## Prompt base e modos (T12)
+
+A postura do atendimento fica no código, não no cérebro: uma correção vale para todos os clientes. O prompt é montado nesta ordem: prompt base (`src/lib/ai/build-prestador-prompt.ts`), texto do modo (`src/lib/ai/modos.ts`), cérebro, canais do cliente, dados do momento e conversa.
+
+- **Modo** (do cadastro), um por cliente. Cliente sem modo usa Conversão.
+  - **Conversão:** conduz e qualifica para levar ao encaminhamento. Cerca ligada: explica como funciona, não dá parecer sobre o caso.
+  - **Hospitalidade:** informa bem, sem empurrar. Encaminha só se a pessoa pedir algo que a equipe precisa fazer. Cerca neutra.
+  - **Resolução:** diagnostica e resolve dentro da conversa; encaminhar é o último recurso. Cerca invertida: orienta o caso, mas só com base no cérebro; o que não está lá ou envolve dinheiro, segurança ou saúde, escala.
+  - Cada modo diz também o que fazer depois do encaminhamento (pergunta nova, alteração, cancelamento, cobrança de retorno, insistência).
+- **Desvios:** reclamação (fora do modo resolução), vaga de emprego, fornecedor, imprensa/parceria e urgência recebem o canal certo do cadastro (SAC, RH, compras, imprensa, contato rápido; vazio cai no principal) e **nunca** viram encaminhamento. Elogio, assunto fora do negócio e golpe são tratados sem canal.
+- **Chaves do cérebro:** `NOME_ASSISTENTE`, `NOME_DO_NEGOCIO`, `NOME_PRESTADOR`, `PRAZO_RETORNO`, `RESUMO_NEGOCIO`, `SERVICOS`, `PRECOS_GERAIS`, `HORARIOS`, `COMO_FUNCIONA`, `PERGUNTAS_FREQUENTES`, mais as novas `LIMITADORES` (regras de decisão do cliente: o que encaminha e o que não), `AVISOS` (eventos, novidades, mudanças) e `AJUSTE_CERCA` (ajuste da cerca do modo para este cliente). `O_QUE_SEMPRE_ESCALA` e `CAMPO_LIVRE` saíram: o admin recusa e a IA não lê mais. Cérebro antigo precisa ser migrado (renomear para `LIMITADORES` e `AVISOS`).
+- Ao mudar o prompt, mude também `VERSAO_PROMPT` (gravado em cada resposta) e os marcadores de vazamento em `src/lib/ai/validate-output.ts`.
 
 ## Bateria de personas
 

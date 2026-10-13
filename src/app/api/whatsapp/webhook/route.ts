@@ -335,6 +335,7 @@ async function tratarTurno(args: {
     carregarHistorico: () => carregarHistorico(conversaId),
     carregarResumo: () => carregarResumoWhatsapp(conversaId),
     contexto: contextoWhatsapp(cliente.id, conversaId),
+    cadastro: { modo: cliente.modo, canaisFallback: cliente.canaisFallback },
     encaminhamento: {
       camposPedido: cliente.camposPedido,
       porta: portaWhatsapp(cliente.id, conversaId),

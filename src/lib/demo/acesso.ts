@@ -58,6 +58,9 @@ export type DemoConversa = DemoPublica & {
   cerebro: unknown
   // Lista de campos do pedido (T8), usada pela ferramenta de encaminhamento (T9)
   camposPedido: unknown
+  // Modo e canais de fallback (T8), lidos pelo prompt (T12)
+  modo: string | null
+  canaisFallback: unknown
   limiteMensagens: number
   expiraEm: Date
   // Início da liberação atual: o limite de mensagens conta a partir daqui
@@ -86,6 +89,8 @@ export async function carregarDemoParaConversa(
       nomeRemetente: true,
       cerebro: true,
       camposPedido: true,
+      modo: true,
+      canaisFallback: true,
       testeLimiteMensagens: true,
       testeLiberadoAte: true,
       testeLiberadoEm: true,
@@ -106,6 +111,8 @@ export async function carregarDemoParaConversa(
       remetenteExibicao: nomeRemetente(cliente),
       cerebro: cliente.cerebro,
       camposPedido: cliente.camposPedido,
+      modo: cliente.modo,
+      canaisFallback: cliente.canaisFallback,
       limiteMensagens: cliente.testeLimiteMensagens,
       expiraEm: cliente.testeLiberadoAte,
       liberadoEm: cliente.testeLiberadoEm,

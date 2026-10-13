@@ -92,10 +92,10 @@ export function definicoesFerramentas(campos: CampoPedido[]): DefinicaoFerrament
   return [
     {
       nome: NOME_FERRAMENTA,
-      descricao: `Registra um pedido NOVO da pessoa e encaminha para a equipe do negócio. Chame quando a conversa chegar no ponto de encaminhar. Responde "registrado", "faltando: X" (peça X à pessoa) ou "limite atingido" (não prometa retorno). Se já existe um pedido ativo e a pessoa só mudou algo nele, use ${FERRAMENTA_ATUALIZAR}.
+      descricao: `Registra um pedido NOVO da pessoa e encaminha para a equipe do negócio. Chame quando a conversa chegar no ponto de encaminhar. Responde "registrado"; "faltando: X" (NÃO diga que encaminhou: peça X à pessoa, uma coisa de cada vez, e chame de novo); ou "limite atingido" (NÃO diga que encaminhou nem prometa retorno: explique com leveza que por hoje não consegue registrar novos pedidos por aqui e que amanhã consegue). Nunca chame por causa de um desvio (vaga, fornecedor, imprensa, elogio, assunto fora do negócio, golpe; reclamação, fora do modo resolução). Se já existe um pedido ativo e a pessoa só mudou algo nele, use ${FERRAMENTA_ATUALIZAR}.
 Campos do pedido, use exatamente estes nomes como chaves em "campos":
 ${lista}
-Preencha só o que a pessoa disse ou confirmou; não invente. Se a pessoa não disse um campo, deixe-o vazio ("") ou não o mande: nunca escreva "faltando", "a confirmar", "não informado" ou parecido no lugar do valor; o código avisa o que falta. Data só vale se for um dia específico: data vaga ("semana que vem", "qualquer dia") fica vazia. Tudo em português.`,
+Preencha só o que a pessoa disse ou confirmou; não invente. Se a pessoa não disse um campo, deixe-o vazio ("") ou não o mande: nunca escreva "faltando", "a confirmar", "não informado" ou parecido no lugar do valor; o código avisa o que falta. Data só vale se for um dia específico: data vaga ("semana que vem", "qualquer dia") fica vazia; pergunte o dia. Se um número (quantidade, valor), uma data ou horário ou um nome que você vai mandar veio de uma mensagem "[áudio transcrito]", confirme antes com a pessoa em UMA pergunta curta (ex.: "Só pra confirmar: 12 pessoas, sábado dia 10?") e só chame depois que ela confirmar; dado digitado ou já confirmado não precisa. Tudo em português.`,
       parametros: {
         type: 'object',
         properties: {
@@ -111,10 +111,10 @@ Preencha só o que a pessoa disse ou confirmou; não invente. Se a pessoa não d
     },
     {
       nome: FERRAMENTA_ATUALIZAR,
-      descricao: `Atualiza o pedido ativo desta conversa (o último registrado e não cancelado) e avisa a equipe. Chame só quando a pessoa MUDAR um dado de um pedido já registrado (ex.: outro horário, mais pessoas) ou acrescentar algo a ele. Conversa sobre o pedido, sem mudança, não é atualização. Responde "atualizado", "sem pedido ativo" (não há o que atualizar), "nada mudou" ou "limite atingido".
+      descricao: `Atualiza o pedido ativo desta conversa (o último registrado e não cancelado) e avisa a equipe. Chame só quando a pessoa MUDAR um dado de um pedido já registrado (ex.: outro horário, mais pessoas) ou acrescentar algo a ele. Conversa sobre o pedido, sem mudança, não é atualização. Responde "atualizado" (confirme em uma frase curta que a equipe foi avisada da mudança), "sem pedido ativo" (não há o que atualizar; se for um pedido novo, use registrar_pedido), "nada mudou" ou "limite atingido" (NÃO diga que mudou: explique com leveza que por hoje não consegue registrar mais mudanças por aqui e que amanhã consegue).
 Em "campos", mande só os campos que mudaram, com os mesmos nomes do pedido:
 ${lista}
-Nunca mande "faltando", "a confirmar", "não informado" ou parecido como valor: campo que não mudou fica de fora. Tudo em português.`,
+Nunca mande "faltando", "a confirmar", "não informado" ou parecido como valor: campo que não mudou fica de fora. Se um número (quantidade, valor), uma data ou horário ou um nome que você vai mandar veio de uma mensagem "[áudio transcrito]", confirme antes com a pessoa em UMA pergunta curta (ex.: "Só pra confirmar: 12 pessoas, sábado dia 10?") e só chame depois que ela confirmar; dado digitado ou já confirmado não precisa. Tudo em português.`,
       parametros: {
         type: 'object',
         properties: {
@@ -133,7 +133,7 @@ Nunca mande "faltando", "a confirmar", "não informado" ou parecido como valor: 
     },
     {
       nome: FERRAMENTA_CANCELAR,
-      descricao: `Cancela o pedido ativo desta conversa e avisa a equipe. Chame só quando a pessoa disser claramente que desistiu ou quer cancelar o pedido. Responde "cancelado", "sem pedido ativo" ou "limite atingido". Tudo em português.`,
+      descricao: `Cancela o pedido ativo desta conversa e avisa a equipe. Chame só quando a pessoa disser claramente que desistiu, quer cancelar o pedido ou já resolveu sozinha. Na dúvida ("acho que não vou mais"), pergunte antes se ela quer cancelar. Responde "cancelado" (confirme em uma frase curta que a equipe foi avisada), "sem pedido ativo" ou "limite atingido" (NÃO diga que cancelou: explique que por hoje não consegue registrar por aqui e que amanhã consegue). Tudo em português.`,
       parametros: {
         type: 'object',
         properties: {

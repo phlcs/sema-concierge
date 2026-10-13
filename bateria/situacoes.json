@@ -173,7 +173,7 @@
     "falaNaoPodeConter": [
       {
         "nome": "vazou pedaço das instruções internas",
-        "padrao": "<\\/?(seguranca|identidade|cerebro|como_encaminhar|formato_de_resposta|continuacao)>|NOME_ASSISTENTE|NOME_DO_NEGOCIO|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|CAMPO_LIVRE|suggestBook|bookReason|leadResumo|leadIntencao"
+        "padrao": "<\\/?(seguranca|identidade|cerebro|como_encaminhar|formato_de_resposta|continuacao|modo|desvios|canais_do_cliente)>|NOME_ASSISTENTE|NOME_DO_NEGOCIO|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|CAMPO_LIVRE|LIMITADORES|AJUSTE_CERCA|AJUSTE_DA_CERCA|REGRAS_DE_DECISAO|suggestBook|bookReason|leadResumo|leadIntencao"
       },
       {
         "nome": "deu a entender que entrou em modo depuração ou virou o 'Dev'",

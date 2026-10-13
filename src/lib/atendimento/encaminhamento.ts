@@ -95,7 +95,7 @@ export function definicoesFerramentas(campos: CampoPedido[]): DefinicaoFerrament
       descricao: `Registra um pedido NOVO da pessoa e encaminha para a equipe do negócio. Chame quando a conversa chegar no ponto de encaminhar. Responde "registrado", "faltando: X" (peça X à pessoa) ou "limite atingido" (não prometa retorno). Se já existe um pedido ativo e a pessoa só mudou algo nele, use ${FERRAMENTA_ATUALIZAR}.
 Campos do pedido, use exatamente estes nomes como chaves em "campos":
 ${lista}
-Preencha só o que a pessoa disse ou confirmou; não invente. Data só vale se for um dia específico: data vaga ("semana que vem", "qualquer dia") fica vazia. Tudo em português.`,
+Preencha só o que a pessoa disse ou confirmou; não invente. Se a pessoa não disse um campo, deixe-o vazio ("") ou não o mande: nunca escreva "faltando", "a confirmar", "não informado" ou parecido no lugar do valor; o código avisa o que falta. Data só vale se for um dia específico: data vaga ("semana que vem", "qualquer dia") fica vazia. Tudo em português.`,
       parametros: {
         type: 'object',
         properties: {
@@ -114,7 +114,7 @@ Preencha só o que a pessoa disse ou confirmou; não invente. Data só vale se f
       descricao: `Atualiza o pedido ativo desta conversa (o último registrado e não cancelado) e avisa a equipe. Chame só quando a pessoa MUDAR um dado de um pedido já registrado (ex.: outro horário, mais pessoas) ou acrescentar algo a ele. Conversa sobre o pedido, sem mudança, não é atualização. Responde "atualizado", "sem pedido ativo" (não há o que atualizar), "nada mudou" ou "limite atingido".
 Em "campos", mande só os campos que mudaram, com os mesmos nomes do pedido:
 ${lista}
-Tudo em português.`,
+Nunca mande "faltando", "a confirmar", "não informado" ou parecido como valor: campo que não mudou fica de fora. Tudo em português.`,
       parametros: {
         type: 'object',
         properties: {
@@ -154,11 +154,35 @@ function texto(valor: unknown): string {
   return ''
 }
 
-// Valores vazios ou que só dizem que não sabe contam como faltando
-const VAZIO = /^(-|n\/?a|null|nenhum|nenhuma|não informado|nao informado|não sei|nao sei|\?+)$/i
+// Valores que não são dado contam como faltando. Comparados já sem acento, em
+// minúsculas e sem pontuação nas pontas ("(faltando)", "[a confirmar]", "?").
+// Só o valor inteiro:
+const VAZIO = /^(n\/?a|null|undefined|nenhum|nenhuma|vazio)$/
+// O marcador sozinho ou seguido de poucas palavras ("não informado pelo cliente"):
+const MARCADOR =
+  /^(faltando|pendente|a confirmar|a definir|a combinar|desconhecid[oa]|sem nome|sem informacao|nao informad[oa]|nao informou|nao disse|nao sei|nao sabe)( \S+){0,4}$/
 
-function vazio(valor: string): boolean {
-  return valor === '' || VAZIO.test(valor)
+function normalizar(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+    .replace(/\s+/g, ' ')
+}
+
+// `campo` = nome do campo: o valor que só repete o nome (nome = "nome") ou o nome
+// seguido de marcador ("nome: faltando") também conta como vazio
+function vazio(valor: string, campo?: string): boolean {
+  let v = normalizar(valor)
+  if (campo) {
+    const nome = normalizar(campo)
+    if (v === nome) return true
+    if (nome && v.startsWith(nome) && /^[^\p{L}\p{N}]/u.test(v.slice(nome.length))) {
+      v = normalizar(v.slice(nome.length))
+    }
+  }
+  return v === '' || VAZIO.test(v) || MARCADOR.test(v)
 }
 
 function comoObjeto(valor: unknown): Record<string, unknown> | null {
@@ -189,8 +213,8 @@ export function conferirPedido(args: {
   const faltando: string[] = []
   for (const c of campos) {
     const valor = porNome.get(c.nome.toLowerCase()) ?? ''
-    if (vazio(valor) && c.obrigatorio) faltando.push(c.nome)
-    if (!vazio(valor)) preenchidos.push({ nome: c.nome, valor: valor.slice(0, 300) })
+    if (vazio(valor, c.nome) && c.obrigatorio) faltando.push(c.nome)
+    if (!vazio(valor, c.nome)) preenchidos.push({ nome: c.nome, valor: valor.slice(0, 300) })
   }
   if (faltando.length > 0) return { tipo: 'faltando', campos: faltando }
   if (feitosHoje >= LIMITE_DIARIO) return { tipo: 'limite' }
@@ -252,7 +276,8 @@ export function conferirAtualizacao(args: {
   const mesclados: CampoPreenchido[] = []
   for (const c of campos) {
     const novo = porNome.get(c.nome.toLowerCase()) ?? ''
-    const valor = vazio(novo) ? (anteriores.get(c.nome.toLowerCase()) ?? '') : novo.slice(0, 300)
+    // Valor que não é dado ("faltando") não apaga o que já estava no pedido
+    const valor = vazio(novo, c.nome) ? (anteriores.get(c.nome.toLowerCase()) ?? '') : novo.slice(0, 300)
     if (valor) mesclados.push({ nome: c.nome, valor })
   }
   // Campo do pedido que saiu do cadastro depois do registro continua no pedido

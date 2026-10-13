@@ -27,10 +27,14 @@ const LEAK_MARKERS: RegExp[] = [
   /JSON\s+OBRIGAT[ÓO]RIO/,
   /CONTEXTO\s+DO\s+NEG[ÓO]CIO/,
   /COMO\s+ENCAMINHAR/,
-  /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE)\b/,
+  /MODO\s+DE\s+ATENDIMENTO/,
+  /CANAIS\s+DO\s+CLIENTE/,
+  /A\s+CERCA\s+\((LIGADA|NEUTRA|INVERTIDA)\)/,
+  /DEPOIS\s+DO\s+ENCAMINHAMENTO\s+\(/,
+  /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE|AJUSTE_CERCA|AJUSTE_DA_CERCA|LIMITADORES|REGRAS_DE_DECISAO|AVISOS_E_NOVIDADES)\b/,
   /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo|registrar_pedido|atualizar_pedido|cancelar_pedido|o_que_mudou)\b/,
   // Marcadores de bloco do prompt e das instruções de continuação/anúncio do motor
-  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|estado_encaminhamento|continuacao|origem_anuncio)>/,
+  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|estado_encaminhamento|continuacao|origem_anuncio|pedidos_agenda_e_pagamento|desvios|modo|canais_do_cliente|resumo_conversa)>/,
 ]
 
 function allText(response: AiResponse): string {

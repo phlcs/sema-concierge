@@ -1,5 +1,6 @@
-// Chaves que o cérebro pode ter (T8). São as que buildPrestadorPrompt() lê hoje.
-// Quando o formato do cérebro mudar (T12/T13), esta lista muda no mesmo commit.
+// Chaves que o cérebro pode ter: as que buildPrestadorPrompt() lê. Formato da T12: só
+// fatos do cliente (a postura está no prompt base e no texto do modo). Quando o formato
+// mudar, esta lista muda no mesmo commit.
 export const CHAVES_CEREBRO = [
   'NOME_ASSISTENTE',
   'NOME_DO_NEGOCIO',
@@ -10,9 +11,13 @@ export const CHAVES_CEREBRO = [
   'PRECOS_GERAIS',
   'HORARIOS',
   'COMO_FUNCIONA',
-  'O_QUE_SEMPRE_ESCALA',
   'PERGUNTAS_FREQUENTES',
-  'CAMPO_LIVRE',
+  // Regras de decisão do cliente: o que encaminha, o que não, limites (substitui O_QUE_SEMPRE_ESCALA)
+  'LIMITADORES',
+  // Avisos e novidades: eventos, mudanças, fatos pontuais (substitui CAMPO_LIVRE)
+  'AVISOS',
+  // Ajuste da cerca do modo para este cliente
+  'AJUSTE_CERCA',
 ] as const
 
 const VALIDAS = new Set<string>(CHAVES_CEREBRO)

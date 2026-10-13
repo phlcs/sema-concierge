@@ -70,7 +70,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const cliente = await prisma.cliente.findUnique({
     where: { id },
-    select: { id: true, cerebro: true, camposPedido: true },
+    select: { id: true, cerebro: true, camposPedido: true, modo: true, canaisFallback: true },
   })
   if (!cliente) return naoEncontrado()
 
@@ -96,6 +96,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     origemAnuncio: false,
     carregarHistorico: async () => historico,
     contexto,
+    cadastro: { modo: cliente.modo, canaisFallback: cliente.canaisFallback },
     encaminhamento: { camposPedido: cliente.camposPedido, porta: portaMemoria(anteriores) },
   })
   // O card avaliado é o do encaminhamento novo; atualizações e cancelamentos vão em

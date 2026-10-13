@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, after, type NextRequest } from 'next/server'
 import { logger } from '@/lib/logger'
 import { getAiConfig } from '@/lib/ai/config'
 import { responderMensagem } from '@/lib/atendimento/motor'
@@ -17,6 +17,7 @@ import {
   salvarMensagemDemo,
 } from '@/lib/demo/conversa'
 import type { ContextoRegistro } from '@/lib/ai/registro'
+import { atualizarResumoDemo, carregarResumoDemo } from '@/lib/atendimento/resumo'
 import { COOKIE_SESSAO, novaSessao, opcoesCookieSessao, sessaoValida } from '@/lib/demo/sessao'
 
 const LIMITE_CORPO_BYTES = 4096
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     ehPrimeiraMensagem,
     origemAnuncio: false,
     carregarHistorico: () => carregarHistoricoDemo(demo.id, sessaoId),
+    carregarResumo: () => carregarResumoDemo(demo.id, sessaoId),
     contexto,
     encaminhamento: { camposPedido: demo.camposPedido, porta: portaTeste(demo.id, sessaoId) },
   })
@@ -181,6 +183,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     ...infoProvider(),
     bloqueio,
   })
+
+  // Resumo das mensagens que saíram da janela (T11): roda depois de a resposta ir
+  // para a tela e vale a partir da próxima mensagem. Nunca lança.
+  after(() => atualizarResumoDemo(demo.id, sessaoId, contexto))
 
   const res = NextResponse.json({
     texto: mensagem,

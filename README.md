@@ -23,10 +23,19 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 3. O servidor responde `200` e processa em seguida. Texto e áudio são tratados: o áudio é baixado pelo media ID, transcrito e entra no turno como texto (ver "Áudio" abaixo). Imagem, documento e vídeo recebem uma frase fixa pedindo texto; os demais tipos são descartados.
 4. O `Cliente` é localizado pelo `phone_number_id`. Status `manutencao` responde com texto fixo; qualquer status diferente de `ativo` não responde.
 5. `normalizarNumero()` define a chave da conversa. Números do Brasil (começam com 55) recebem a regra do nono dígito; os demais são usados exatamente como a Meta enviou.
-6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens, monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
+6. `responderMensagem()` valida a entrada, carrega as últimas 40 mensagens e o resumo das mais antigas (ver "Resumo de conversa longa" abaixo), monta o prompt com o cérebro e chama a IA. Qualquer erro vira uma resposta de fallback.
 7. A mensagem do contato e a resposta são gravadas e a resposta é enviada pela Graph API (`enviarTexto`).
 8. Palavras-chave sensíveis marcam a conversa para revisão (`revisar`).
 9. Cada encaminhamento registrado pelas ferramentas no turno (novo, atualização ou cancelamento) vai para o destino do cadastro, hoje o e-mail (ver "Encaminhamento" abaixo).
+10. Se a conversa passou da janela de histórico, o resumo dela é atualizado (depois da resposta já ter saído).
+
+## Resumo de conversa longa (T11)
+
+- A IA recebe as últimas `LIMITE_HISTORICO` mensagens (padrão 40). Quando a conversa passa disso, as mensagens que saíram da janela viram um **resumo acumulativo** (nome da pessoa, o que ela quer, dados já informados, pedidos registrados/alterados/cancelados, pendências), guardado na conversa e mandado à IA junto com a janela, no bloco `<resumo_conversa>`.
+- O resumo é gerado **depois** de a resposta sair (no link de teste, com `after()`), então não atrasa a pessoa; vale a partir da mensagem seguinte. A cada turno em que mais mensagens saem da janela, o resumo anterior é juntado com elas.
+- Mesmo provedor e modelo do atendimento, sempre em português, até 3.000 caracteres. Cada chamada fica no registro técnico com a função `resumo`; falha vira o evento "Falha ao gerar resumo da conversa" e a conversa segue sem resumo novo.
+- Onde fica: `WhatsappConversation.resumo` / `resumoAte` (WhatsApp) e tabela `DemoResumo` (uma linha por sessão do link de teste). A bateria não usa resumo (tarefa T47).
+- Código: `src/lib/atendimento/resumo.ts` (quando e o que resumir) e `src/lib/ai/resumir.ts` (a chamada à IA).
 
 ## Encaminhamento (T9, T10)
 
@@ -97,13 +106,14 @@ Modelo em [`.env.example`](./.env.example).
 | `RESEND_MODE` | `mock` (padrão, só loga) ou `real` |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de encaminhamento no modo `real`. O nome do remetente vem do cadastro do cliente |
 | `CALCOM_MODE`, `KIWIFY_MODE` | Modos dos adapters sem uso (ver abaixo) |
+| `LIMITE_HISTORICO` | Opcional; quantas mensagens recentes vão para a IA (padrão 40). O que sai da janela vira o resumo da conversa. Em dev, um valor baixo (ex.: 6) facilita testar o resumo |
 | `BATERIA_TOKEN` | Senha da porta da bateria de personas (mínimo 32 caracteres). Só no ambiente de dev. Vazia = porta desligada |
 
 `APP_SECRET` é opcional por segurança de rollout: sem ela o webhook não verifica a assinatura (e avisa no log a cada evento). Com ela errada, o robô para de responder; para voltar, apague a variável no Railway, sem novo deploy. Troque a chave primeiro no staging.
 
 ## Observabilidade
 
-- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos, resumo de conversa) entram no catálogo quando a função existir.
+- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos) entram no catálogo quando a função existir.
 - **Registro técnico por chamada de IA** (`RegistroResposta`, sem tela por enquanto): modelo, versão do prompt (`VERSAO_PROMPT` em `build-prestador-prompt.ts`: mude junto com qualquer alteração de prompt), tokens de entrada/saída/cache, tempo, ferramentas chamadas (nome e resultado), custo estimado, origem (`whatsapp`, `teste`, `bateria`) e função (`resposta`, `busca_documentos`, `resumo`, `transcricao`). Os preços ficam em `src/lib/ai/precos.ts`.
 - **Interruptor geral** (tela `/admin/clientes`): coloca todos os clientes ativos em manutenção, pedindo a senha do painel. "Voltar ao normal" reativa só os clientes que o próprio interruptor colocou; o botão de cada cliente manda mais: quem já estava em manutenção continua, e quem teve o botão mexido à mão sai da lista do interruptor.
 

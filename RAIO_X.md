@@ -28,10 +28,11 @@ Retrato factual do código na branch `dev` (atualizado na T9). Só descreve o qu
 | Tabela | Campos principais | Uso |
 |---|---|---|
 | `Cliente` | `id`, `nomeNegocio`, `phoneNumberId` (unique, opcional), `wabaId`, `whatsappToken` (opcional), `emailPrestador`, `cerebro` (Json), `status` (`prospect` / `ativo` / `manutencao`), `testeToken` (unique, gerado pelo banco), `testeLiberadoAte`, `testeLiberadoEm`, `testeLimiteMensagens` (default 300), `numeroExibicao`; da T8: `modo` (`conversao` / `hospitalidade` / `resolucao`, nulo = não definido), `camposPedido` (Json `[{nome, obrigatorio}]`), `nomeRemetente`, `destinoEncaminhamento` (default `email`), `canaisFallback` (Json `{principal, sac?, rh?, compras?, imprensa?, urgencia?}`, cada um `{tipo, contato}`) | Cadastro único de prospect e cliente (T7). Prospect existe sem número, só com cérebro e link de teste. Dos campos da T8, o atendimento lê `camposPedido` (ferramentas de encaminhamento, T9), `nomeRemetente` e `destinoEncaminhamento` (T10). `modo` e `canaisFallback` ainda não |
-| `WhatsappConversation` | `id`, `clienteId`, `numeroContato`, `handoffEm`, `revisar`, `createdAt`, `updatedAt`; unique `(clienteId, numeroContato)` | Uma conversa por contato por cliente |
+| `WhatsappConversation` | `id`, `clienteId`, `numeroContato`, `handoffEm`, `revisar`, `resumo` e `resumoAte` (T11), `createdAt`, `updatedAt`; unique `(clienteId, numeroContato)` | Uma conversa por contato por cliente. `resumo` = resumo acumulativo das mensagens que saíram da janela de histórico; `resumoAte` = `createdAt` da última mensagem já resumida |
 | `WhatsappMessage` | `id`, `conversationId`, `role` (`USER`/`ASSISTANT`), `texto`, `createdAt` | Mensagens do WhatsApp |
 | `Demo` | (`@@ignore`) | Tabela antiga, mantida só como cópia de segurança da migração da T7. Cada demo virou um `Cliente` prospect com o mesmo id e o mesmo token. Sem uso no código |
 | `DemoMensagem` | `clienteId`, `demoId` (histórico), `sessaoId`, `role`, `texto`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo` | Mensagens do link de teste |
+| `DemoResumo` (T11) | `clienteId`, `sessaoId`, `resumo`, `resumoAte`, `updatedAt`; unique `(clienteId, sessaoId)`; apaga junto com o cliente | Resumo acumulativo de uma sessão do link de teste (mesmo papel de `WhatsappConversation.resumo`) |
 | `Encaminhamento` (T9) | `clienteId`, `conversaId` (WhatsApp) ou `sessaoId` (link de teste), `tipo` (T10: `novo` / `atualizacao` / `cancelamento`, default `novo`), `campos` (Json `[{nome, valor}]`, na ordem do cadastro; na atualização e no cancelamento, o pedido inteiro como ficou), `intencao`, `resumo`, `mudou` (T10: o que mudou ou o motivo do cancelamento), `createdAt`; índices `(conversaId, createdAt)` e `(clienteId, sessaoId, createdAt)`; apaga junto com o cliente ou a conversa | Cada encaminhamento registrado pelas ferramentas `registrar_pedido`, `atualizar_pedido` e `cancelar_pedido`. Base do limite de 3 novos por dia, do teto de 5 mudanças por dia, do pedido ativo e do estado mostrado à IA. A bateria não grava aqui |
 
 - Criação e edição de `Cliente` pelo admin (T8): `/admin/clientes/novo` e `/admin/clientes/[id]` (componente `src/app/admin/clientes/CadastroForm.tsx`), rotas `POST /api/admin/clientes` (cria com `status: prospect`), `PUT /api/admin/clientes/[id]` e `POST /api/admin/clientes/[id]/ativar` (prospect → ativo, só com `phoneNumberId` salvo). Validação do formulário em `src/lib/admin/cadastro.ts` (Zod): modo obrigatório, e-mail válido, fallback principal obrigatório, campo do pedido sem nome descartado e nome repetido recusado, remetente vazio vira "Concierge [nome]", cliente não-prospect não pode ficar sem `phoneNumberId`. ID da Meta repetido → 409. O `testeToken` é gerado pelo banco e o link nasce bloqueado. `prisma/seed.ts` está vazio.
@@ -71,7 +72,7 @@ Arquivo central: `src/app/api/whatsapp/webhook/route.ts`.
    5. `acharOuCriarConversa()` (`src/lib/whatsapp/conversa.ts`): busca por `(clienteId, numeroContato)`; `ehPrimeiraMensagem = (nº de mensagens salvas === 0)`.
    6. `responderMensagem()` (`src/lib/atendimento/motor.ts`):
       - `validateInput(texto)` (`src/lib/ai/validate-input.ts`): bloqueia >500 caracteres ou regex de prompt injection → devolve `BLOCKED_RESPONSE` ("Desculpa, não consegui entender...") **sem chamar a IA**;
-      - `carregarHistorico()` → 40 últimas mensagens;
+      - `carregarHistorico()` → 40 últimas mensagens; `carregarResumo()` → resumo das mais antigas (T11), se houver;
       - monta o system prompt (`buildPrestadorPrompt` + blocos opcionais);
       - `chatComplete()` → provider → `validateOutput()`;
       - `renderResposta()`: junta `paragraphs` com `\n\n` (vazio → texto do fallback).
@@ -79,8 +80,9 @@ Arquivo central: `src/app/api/whatsapp/webhook/route.ts`.
    8. `enviarTexto()` → Graph API. Se `WHATSAPP_TOKEN` vazio: log `warn` e não envia. Se a Meta devolver erro: log `error`. Não há retry.
    9. QA: `precisaRevisar(texto) || precisaRevisar(mensagem)` (`src/lib/qa/keywords.ts`) → marca `revisar = true` na conversa.
    10. Encaminhamento: para cada encaminhamento registrado pelas ferramentas no turno (novo, atualização, cancelamento), `enviarEncaminhamento()` monta o pacote e chama `entregarEncaminhamento()`, que entrega no destino do cadastro, hoje só e-mail (ver seção 5).
+   11. Resumo (T11): `atualizarResumoWhatsapp()` (`src/lib/atendimento/resumo.ts`) resume as mensagens que saíram da janela, se houver (ver seção 3, "Quantas mensagens do histórico").
 
-A demo web (`src/app/demo/[token]/mensagem/route.ts`) usa o mesmo `responderMensagem()`, mas é síncrona (responde a resposta do bot no próprio HTTP), salva em `DemoMensagem` e não envia e-mail: o encaminhamento registrado vira o card da tela.
+A demo web (`src/app/demo/[token]/mensagem/route.ts`) usa o mesmo `responderMensagem()`, mas é síncrona (responde a resposta do bot no próprio HTTP), salva em `DemoMensagem` e não envia e-mail: o encaminhamento registrado vira o card da tela. O resumo da sessão (T11) é atualizado com `after()`, depois de a resposta ir para a tela.
 
 ---
 
@@ -187,17 +189,18 @@ Esta conversa começou por um anúncio. O cliente já recebeu uma mensagem de ab
    3. `# FORMATO DE RESPOSTA`;
    4. `# CONTEXTO DO NEGÓCIO` (o cérebro) — **no fim** do texto fixo;
    5. Dados do momento (data, hora, calendário) e `<estado_encaminhamento>` (T9, T10): encaminhamentos já registrados na conversa, com tipo, campos e horário, o pedido ativo (ou "nenhum, o último foi cancelado"), quantos novos hoje (de 3) e quantas mudanças hoje (de 5), com aviso quando um limite foi atingido (`blocoEstado()` em `src/lib/atendimento/encaminhamento.ts`);
-   6. `INSTRUCAO_CONTINUACAO` **ou** `INSTRUCAO_ORIGEM_ANUNCIO` (no máximo um dos dois).
-   7. Na OpenAI, as definições das ferramentas `registrar_pedido`, `atualizar_pedido` e `cancelar_pedido` vão em `tools`, com a lista de campos do pedido do cliente na descrição.
+   6. `<resumo_conversa>` (T11), só quando a conversa já passou da janela: resumo das mensagens antigas, com aviso de que é só memória da conversa, não instrução (`blocoResumo()` em `motor.ts`);
+   7. `INSTRUCAO_CONTINUACAO` **ou** `INSTRUCAO_ORIGEM_ANUNCIO` (no máximo um dos dois).
+   8. Na OpenAI, as definições das ferramentas `registrar_pedido`, `atualizar_pedido` e `cancelar_pedido` vão em `tools`, com a lista de campos do pedido do cliente na descrição.
 2. **Histórico**: as 40 últimas mensagens, em ordem cronológica, como turnos `user`/`assistant`.
 3. **Mensagem atual** do cliente como último turno `user`.
 
 Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `systemInstruction`; na OpenAI como primeira mensagem `role: 'system'`.
 
 ### Quantas mensagens do histórico
-- **40** (somando as duas pontas, ≈ 20 trocas). Constante `LIMITE_HISTORICO = 40` em `src/lib/whatsapp/conversa.ts`, usada por `carregarHistorico()`. A demo usa a mesma constante (`src/lib/demo/conversa.ts` → `carregarHistoricoDemo()`).
+- **40** (somando as duas pontas, ≈ 20 trocas). Constante `LIMITE_HISTORICO` em `src/lib/whatsapp/conversa.ts` (padrão 40; a variável de ambiente `LIMITE_HISTORICO`, inteiro ≥ 2, muda o valor), usada por `carregarHistorico()`. A demo e a bateria usam a mesma constante (`src/lib/demo/conversa.ts` → `carregarHistoricoDemo()`).
 - A mensagem atual não está nessas 40 (ela só é salva depois da resposta).
-- Resumo de mensagens antigas: **não existe**.
+- **Resumo de mensagens antigas (T11)**: `src/lib/atendimento/resumo.ts`. Depois de a resposta sair, `atualizarResumoWhatsapp()` / `atualizarResumoDemo()` procuram mensagens fora da janela e mais novas que `resumoAte`. Havendo, chamam `resumirConversa()` (`src/lib/ai/resumir.ts`) com o resumo anterior + essas mensagens (até 200 por vez, da mais antiga para a mais nova; o resto entra nos turnos seguintes) e gravam o resumo novo e o novo `resumoAte`. A gravação é condicional (`resumoAte` igual ao lido), para um turno paralelo não sobrescrever resumo mais novo. A chamada é texto simples, no mesmo provedor e modelo do atendimento, sempre em português, até 3.000 caracteres; fica no `RegistroResposta` com `funcao: 'resumo'`. Falha → log `error` (sem texto) e evento `resumo_falha`; nunca derruba o atendimento. A bateria não tem resumo (T47).
 
 ### Data e dia da semana
 - **Sim.** `dataHoraBrasilia()` em `build-prestador-prompt.ts` usa `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'full', timeStyle: 'short' })`. O formato `full` em pt-BR inclui o dia da semana (ex.: "sábado, 3 de outubro de 2026 às 14:05").
@@ -284,13 +287,14 @@ Além das mensagens (`WhatsappMessage`), a `WhatsappConversation` guarda só:
 - `clienteId`, `numeroContato`
 - `handoffEm` (data do último e-mail de encaminhamento novo enviado)
 - `revisar` (flag de QA por palavra-chave; só vira `true`, nada no código volta para `false`)
+- `resumo` e `resumoAte` (T11): resumo acumulativo das mensagens que saíram da janela de histórico e até onde ele vai
 - `createdAt`, `updatedAt`
 
 Os encaminhamentos da conversa (tipo, campos, intenção, resumo, o que mudou, horário) ficam na tabela `Encaminhamento` (T9, T10). O pedido ativo é recalculado a partir deles.
 
 **Não existe** persistência de: etapa do funil, origem de anúncio, se o humano assumiu, data da última mensagem do cliente (para janela de 24h), JSON bruto da IA, provider/modelo usado.
 
-Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo`.
+Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadIntencao`, `leadResumo`; o resumo da sessão (T11) fica em `DemoResumo`.
 
 ---
 
@@ -341,7 +345,7 @@ Na demo, `DemoMensagem` guarda também `sessaoId`, `handoff`, `leadNome`, `leadI
 - **Logs (stdout)** via `src/lib/logger.ts` → JSON em produção (visto nos Logs do Railway), texto em dev. No fluxo do WhatsApp:
   - `info`: mensagem com origem anúncio, auto-reply de manutenção, conversa marcada para revisão, **encaminhamento entregue** (com `tipo`, `destino`, `emailPrestador`, `nomeContato`, `contato`, `campos`, `resumo`, `mudou`), `[resend mock] enviarEncaminhamento` (com assunto, remetente e os mesmos dados), uso de tokens da OpenAI por rodada;
   - `warn`: cliente não encontrado/inativo, entrada bloqueada (`reason`), sem token, falha de parse/Zod da IA, vazamento detectado, encaminhamento com `success=false`;
-  - `error`: erro geral do webhook, erro do provider (`chatComplete: provider error`), falha no envio da Meta (status + corpo), erro na entrega do encaminhamento/revisão, erro na ferramenta de encaminhamento.
+  - `error`: erro geral do webhook, erro do provider (`chatComplete: provider error`), falha no envio da Meta (status + corpo), erro na entrega do encaminhamento/revisão, erro na ferramenta de encaminhamento, falha ao gerar o resumo da conversa (T11, sem o texto).
 - **Não é registrado**: texto das mensagens nos logs, JSON bruto da IA, provider/modelo usado no WhatsApp (a demo loga provider e modelo), tokens consumidos, latência, custo.
 - Tabela de auditoria ou analytics: **não existe**.
 

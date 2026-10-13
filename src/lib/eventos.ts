@@ -8,8 +8,8 @@ export const TEMAS: Tema[] = ['Recebimento', 'IA e resposta', 'Envio', 'Encaminh
 export const GRAVIDADES: Gravidade[] = ['Erro', 'Aviso', 'Informativo']
 
 // Catálogo da T5. Tema, nome e gravidade vivem aqui, num lugar só: quem registra
-// só diz a chave. Eventos de funções ainda não construídas (busca em documentos,
-// resumo de conversa) entram neste catálogo quando a função existir.
+// só diz a chave. Eventos de funções ainda não construídas (busca em documentos)
+// entram neste catálogo quando a função existir.
 const CATALOGO = {
   webhook_erro_geral: { tema: 'Recebimento', evento: 'Erro geral do webhook', gravidade: 'Erro' },
   webhook_assinatura_recusada: {
@@ -45,6 +45,11 @@ const CATALOGO = {
     gravidade: 'Erro',
   },
   ia_vazamento: { tema: 'IA e resposta', evento: 'Vazamento detectado', gravidade: 'Aviso' },
+  resumo_falha: {
+    tema: 'IA e resposta',
+    evento: 'Falha ao gerar resumo da conversa',
+    gravidade: 'Erro',
+  },
   manutencao_resposta_automatica: {
     tema: 'IA e resposta',
     evento: 'Resposta automática de manutenção',

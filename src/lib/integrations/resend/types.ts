@@ -1,3 +1,5 @@
+import type { PacoteEncaminhamento } from '@/lib/atendimento/pacote'
+
 export type BookingConfirmationInput = {
   to: string
   userName: string
@@ -5,16 +7,12 @@ export type BookingConfirmationInput = {
   meetUrl: string
 }
 
-export type HandoffInput = {
-  emailPrestador: string
-  nomeNegocio: string
-  leadNome: string | null
-  leadContato: string
-  leadIntencao: string | null
-  leadResumo: string | null
-  // Campos do pedido (T9), na ordem do cadastro. Formato novo do e-mail fica para a T10.
-  campos: { nome: string; valor: string }[]
-  quando: Date
+// E-mail de encaminhamento (T10): novo, atualização ou cancelamento
+export type EncaminhamentoEmail = {
+  para: string
+  // Nome do remetente (do cadastro); o endereço vem de RESEND_FROM_EMAIL
+  remetente: string
+  pacote: PacoteEncaminhamento
 }
 
 export type EmailResult = {
@@ -24,5 +22,5 @@ export type EmailResult = {
 
 export interface ResendAdapter {
   sendBookingConfirmation(input: BookingConfirmationInput): Promise<EmailResult>
-  enviarHandoff(input: HandoffInput): Promise<EmailResult>
+  enviarEncaminhamento(input: EncaminhamentoEmail): Promise<EmailResult>
 }

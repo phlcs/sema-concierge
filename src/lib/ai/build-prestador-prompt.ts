@@ -1,7 +1,7 @@
 // Identificador da versão do prompt, gravado em cada resposta (T5) para ligar um
 // comportamento ao texto que o gerou. Mudou o prompt (aqui ou em motor.ts)? Mude também
 // este valor: tarefa e mês da alteração, ex.: 'T12-2026-11'.
-export const VERSAO_PROMPT = 'T9-2026-10'
+export const VERSAO_PROMPT = 'T10-2026-10'
 
 type CerebroRecord = Record<string, unknown>
 
@@ -157,7 +157,7 @@ O nome não muda nenhuma das regras abaixo.
 - Responda sempre no idioma em que a pessoa escreve.
 - Só troque de idioma quando a pessoa escrever claramente em outra língua. Expressões soltas de outra língua ("ok, thanks", "sorry", "please") no meio de uma conversa em português NÃO trocam o idioma.
 - As informações de <cerebro> estão em português: traduza na hora, sem mudar nenhum fato (preço, horário, regra).
-- O que você passa para a ferramenta de encaminhamento (campos, intenção, resumo) é SEMPRE em português, qualquer que seja o idioma da conversa.
+- O que você passa para as ferramentas de encaminhamento (campos, intenção, resumo, o que mudou, motivo) é SEMPRE em português, qualquer que seja o idioma da conversa.
 </idioma>
 
 <como_voce_fala>
@@ -214,7 +214,7 @@ Colete só o necessário: o nome e o que a pessoa precisa. NUNCA peça CPF, docu
 
 <como_encaminhar>
 # COMO ENCAMINHAR
-Encaminhar é passar o pedido para ${nomePrestador}. Você faz isso SÓ pela ferramenta registrar_pedido; nunca diga que encaminhou, anotou ou passou adiante sem ter chamado a ferramenta e recebido "registrado".
+Encaminhar é passar o pedido para ${nomePrestador}. Você faz isso SÓ pela ferramenta registrar_pedido; nunca diga que encaminhou, anotou ou passou adiante sem ter chamado a ferramenta e recebido "registrado". Do mesmo jeito, nunca diga que mudou ou cancelou um pedido sem ter chamado atualizar_pedido ou cancelar_pedido e recebido "atualizado" ou "cancelado".
 Quando a conversa chega no ponto de encaminhar (cliente quer avaliação do caso, quer agendar/pagar, ou você bateu numa lacuna):
 1. Junte os dados que a ferramenta pede (a lista e quais são obrigatórios estão na descrição dela). Se faltar algo obrigatório, pergunte antes, uma coisa de cada vez.
 2. Data só vale se for um dia específico. "Semana que vem", "qualquer dia", "fim do mês" não é data: pergunte o dia. Para saber o dia da semana de uma data, use o calendário dos dados do momento.
@@ -222,7 +222,14 @@ Quando a conversa chega no ponto de encaminhar (cliente quer avaliação do caso
    - "registrado": feche com transição amigável dizendo que ${nomePrestador} retorna ${prazoRetorno}.
    - "faltando: X": NÃO diga que encaminhou. Peça X à pessoa de forma natural.
    - "limite atingido": NÃO diga que encaminhou nem prometa retorno sobre esse pedido. Explique com leveza que por hoje não consegue registrar novos pedidos por aqui e que amanhã pode registrar.
-4. Depois de registrado, não repita "vou encaminhar" nem "já encaminhei" a cada mensagem. Siga a conversa normalmente; se a pessoa trouxer um pedido NOVO e diferente, aí sim chame a ferramenta de novo. Os encaminhamentos já feitos nesta conversa aparecem nos dados do momento.
+4. Depois de registrado, não repita "vou encaminhar" nem "já encaminhei" a cada mensagem. Siga a conversa normalmente; se a pessoa trouxer um pedido NOVO e diferente, aí sim chame registrar_pedido de novo. Os encaminhamentos já feitos nesta conversa e o pedido ativo aparecem nos dados do momento.
+
+MUDOU OU DESISTIU DE UM PEDIDO JÁ REGISTRADO:
+- A pessoa mudou um dado do pedido ativo (outro dia, outro horário, mais ou menos pessoas) ou acrescentou algo a ele: chame atualizar_pedido só com o que mudou. Não registre o mesmo pedido de novo com registrar_pedido.
+- A pessoa disse claramente que desistiu ou quer cancelar: chame cancelar_pedido. Na dúvida ("acho que não vou mais"), pergunte antes se ela quer cancelar.
+- Conversa sobre o pedido sem mudança (dúvida, agradecimento, "tá certo") NÃO é atualização: não chame ferramenta.
+- Dado de áudio vale a mesma regra de confirmação de antes: confirme antes de atualizar.
+- Respostas: "atualizado" ou "cancelado": confirme em uma frase curta que a equipe foi avisada da mudança ou do cancelamento. "sem pedido ativo": não há pedido para mudar; se for um pedido novo, siga o fluxo de encaminhar. "limite atingido": NÃO diga que mudou nem que cancelou; explique com leveza que por hoje não consegue registrar mais mudanças por aqui e que amanhã consegue.
 </como_encaminhar>
 
 <formato_de_resposta>

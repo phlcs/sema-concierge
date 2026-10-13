@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { nomeRemetente } from '@/lib/atendimento/pacote'
 
 const FORMATO_TOKEN = /^[0-9a-f]{64}$/
 
@@ -13,6 +14,8 @@ export type DemoPublica = {
   nomeNegocio: string
   numeroExibicao: string
   emailExibicao: string
+  // Remetente do e-mail de encaminhamento, mostrado no card (T10)
+  remetenteExibicao: string
 }
 
 export type AcessoDemo =
@@ -31,6 +34,7 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
       nomeNegocio: true,
       numeroExibicao: true,
       emailPrestador: true,
+      nomeRemetente: true,
       testeLiberadoAte: true,
     },
   })
@@ -41,6 +45,7 @@ export async function carregarDemo(token: string, agora: Date = new Date()): Pro
     nomeNegocio: cliente.nomeNegocio,
     numeroExibicao: cliente.numeroExibicao ?? '',
     emailExibicao: cliente.emailPrestador,
+    remetenteExibicao: nomeRemetente(cliente),
   }
 
   if (!linkLiberado(cliente.testeLiberadoAte, agora)) {
@@ -78,6 +83,7 @@ export async function carregarDemoParaConversa(
       nomeNegocio: true,
       numeroExibicao: true,
       emailPrestador: true,
+      nomeRemetente: true,
       cerebro: true,
       camposPedido: true,
       testeLimiteMensagens: true,
@@ -97,6 +103,7 @@ export async function carregarDemoParaConversa(
       nomeNegocio: cliente.nomeNegocio,
       numeroExibicao: cliente.numeroExibicao ?? '',
       emailExibicao: cliente.emailPrestador,
+      remetenteExibicao: nomeRemetente(cliente),
       cerebro: cliente.cerebro,
       camposPedido: cliente.camposPedido,
       limiteMensagens: cliente.testeLimiteMensagens,

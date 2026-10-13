@@ -110,7 +110,7 @@ export default function DemoApp(props: {
               Reiniciar atendimento?
             </div>
             <div className="dialog-body">
-              A conversa e todos os handoffs desta sessão serão apagados. Você começa um novo
+              A conversa e todos os encaminhamentos desta sessão serão apagados. Você começa um novo
               atendimento do zero.
             </div>
             {erroReinicio && <div className="dialog-erro">{erroReinicio}</div>}

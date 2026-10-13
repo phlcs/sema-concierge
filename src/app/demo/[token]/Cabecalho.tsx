@@ -27,7 +27,7 @@ export default function Cabecalho(props: {
           <button
             type="button"
             className="icon-btn"
-            aria-label="Handoffs"
+            aria-label="Encaminhamentos"
             aria-expanded={painelAberto}
             onClick={props.onAlternarPainel}
           >
@@ -52,16 +52,16 @@ export default function Cabecalho(props: {
         {toastVisivel && !painelAberto && (
           <button type="button" className="toast" onClick={props.onAbrirPeloToast}>
             <IconeEmail size={18} />
-            <span className="msg">Novo handoff enviado ao prestador</span>
+            <span className="msg">{handoff ? `E-mail à equipe: ${handoff.titulo.toLowerCase()}` : ''}</span>
             <span className="open">Abrir</span>
           </button>
         )}
 
         {painelAberto && (
-          <div className="panel" role="dialog" aria-label="Handoffs">
+          <div className="panel" role="dialog" aria-label="Encaminhamentos">
             <div className="panel-head">
               <div className="panel-title">
-                Handoffs <small>{total}</small>
+                Encaminhamentos <small>{total}</small>
               </div>
               <button
                 type="button"
@@ -75,45 +75,37 @@ export default function Cabecalho(props: {
             {handoff ? (
               <div className="mail-wrap">
                 <div className="mail">
-                  <div className="mail-brand">Sema</div>
-                  <div className="mail-title">Novo lead</div>
+                  <div className="mail-brand">{nomeNegocio}</div>
+                  <div className="mail-title">{handoff.titulo}</div>
                   <div className="mail-meta">
+                    De: {handoff.remetente}
+                    <br />
                     Para: {handoff.para}
                     <br />
                     Assunto: {handoff.assunto}
                   </div>
-                  <div className="row">
-                    <div className="row-label">Nome</div>
-                    <div className="row-value main">{handoff.nome}</div>
-                  </div>
-                  <div className="row">
-                    <div className="row-label">Contato</div>
-                    <div className="row-value">{handoff.contato}</div>
-                  </div>
-                  <div className="row">
-                    <div className="row-label">O que quer</div>
-                    <div className="row-value">{handoff.intencao}</div>
-                  </div>
-                  {(handoff.campos ?? []).map((c) => (
-                    <div className="row" key={c.nome}>
-                      <div className="row-label">{c.nome}</div>
-                      <div className="row-value">{c.valor}</div>
+                  {handoff.destaque && (
+                    <div className="mail-destaque">
+                      <div className="row-label">{handoff.destaque.rotulo}</div>
+                      {handoff.destaque.itens.map((item, i) => (
+                        <div className="row-value main" key={i}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {handoff.linhas.map((l, i) => (
+                    <div className="row" key={`${l.rotulo}-${i}`}>
+                      <div className="row-label">{l.rotulo}</div>
+                      <div className="row-value">{l.valor}</div>
                     </div>
                   ))}
-                  <div className="row">
-                    <div className="row-label">Resumo</div>
-                    <div className="row-value">{handoff.resumo}</div>
-                  </div>
-                  <div className="row">
-                    <div className="row-label">Quando</div>
-                    <div className="row-value">{handoff.quando}</div>
-                  </div>
                 </div>
               </div>
             ) : (
               <div className="panel-empty">
-                Nenhum handoff nesta sessão. Quando o assistente encaminhar o lead ao prestador, o
-                email aparece aqui.
+                Nenhum encaminhamento nesta sessão. Quando o assistente encaminhar um pedido para a
+                equipe, o e-mail aparece aqui.
               </div>
             )}
           </div>

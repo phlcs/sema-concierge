@@ -618,6 +618,12 @@ body:has(.sema-demo) {
   border-bottom: 1px solid var(--surface);
   word-break: break-word;
 }
+.sema-demo .mail-destaque {
+  background: var(--surface);
+  border-left: 3px solid var(--lime);
+  padding: 10px 12px;
+  margin-top: 10px;
+}
 .sema-demo .row {
   padding: 10px 0;
   border-bottom: 1px solid var(--surface);

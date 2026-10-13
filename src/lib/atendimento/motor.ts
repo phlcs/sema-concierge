@@ -12,16 +12,22 @@ import { logger } from '@/lib/logger'
 import { inicioDoDiaBrasilia } from '@/lib/ai/build-prestador-prompt'
 import type { Ferramentas } from '@/lib/ai/ferramentas'
 import {
+  FERRAMENTA_ATUALIZAR,
+  FERRAMENTA_CANCELAR,
   NOME_FERRAMENTA,
   blocoEstado,
+  conferirAtualizacao,
+  conferirCancelamento,
   conferirPedido,
   contarDesde,
-  definicaoFerramenta,
+  definicoesFerramentas,
   lerCamposPedido,
+  pedidoAtivo,
   textoDoResultado,
   type EncaminhamentoFeito,
-  type NovoEncaminhamento,
+  type EncaminhamentoRegistrado,
   type PortaEncaminhamento,
+  type ResultadoPedido,
 } from './encaminhamento'
 
 // createdAt só serve pro aviso de tempo; não vai pro provedor de IA
@@ -48,8 +54,9 @@ export type ResultadoMotor = {
   aiResponse: AiResponse
   // reason do validateInput quando a entrada foi bloqueada; null quando passou
   bloqueio: string | null
-  // Encaminhamentos registrados pela ferramenta neste turno (T9). A porta envia o e-mail/card.
-  encaminhamentos: NovoEncaminhamento[]
+  // Encaminhamentos registrados pelas ferramentas neste turno (novo, atualização,
+  // cancelamento). A porta entrega no destino do cliente ou mostra o card.
+  encaminhamentos: EncaminhamentoRegistrado[]
   // Resultado de cada chamada da ferramenta no turno ("registrado", "faltando: data"...)
   resultadosFerramenta: string[]
 }
@@ -118,7 +125,7 @@ export async function responderMensagem(args: {
   if (!ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_CONTINUACAO
   if (origemAnuncio && ehPrimeiraMensagem) systemPromptMomento += INSTRUCAO_ORIGEM_ANUNCIO
 
-  const encaminhamentos: NovoEncaminhamento[] = []
+  const encaminhamentos: EncaminhamentoRegistrado[] = []
   const resultadosFerramenta: string[] = []
   const ferramentas = ferramentaDeEncaminhamento({
     camposPedido: args.encaminhamento.camposPedido,
@@ -155,7 +162,8 @@ export async function responderMensagem(args: {
   }
 }
 
-// Ferramenta registrar_pedido: confere campos e limite do dia e só então grava.
+// Ferramentas de encaminhamento (registrar, atualizar, cancelar): conferem campos,
+// pedido ativo e limites do dia e só então gravam.
 // O que foi registrado aqui vale mesmo que a resposta final seja trocada depois
 // (filtro de vazamento, falha da IA): a ação da ferramenta nunca é desfeita.
 function ferramentaDeEncaminhamento(args: {
@@ -163,7 +171,7 @@ function ferramentaDeEncaminhamento(args: {
   porta: PortaEncaminhamento
   feitos: EncaminhamentoFeito[]
   contexto: ContextoRegistro
-  aoRegistrar: (novo: NovoEncaminhamento) => void
+  aoRegistrar: (novo: EncaminhamentoRegistrado) => void
   aoResponder: (resultado: string) => void
 }): Ferramentas {
   const campos = lerCamposPedido(args.camposPedido)
@@ -176,13 +184,22 @@ function ferramentaDeEncaminhamento(args: {
   }
 
   return {
-    definicoes: [definicaoFerramenta(campos)],
+    definicoes: definicoesFerramentas(campos),
     executar: async (nome, pedido) => {
-      if (nome !== NOME_FERRAMENTA) return 'erro: ferramenta desconhecida'
+      if (nome !== NOME_FERRAMENTA && nome !== FERRAMENTA_ATUALIZAR && nome !== FERRAMENTA_CANCELAR) {
+        return 'erro: ferramenta desconhecida'
+      }
       try {
         const agora = new Date()
-        const feitosHoje = contarDesde([...args.feitos, ...doTurno], inicioDoDiaBrasilia(agora))
-        const r = conferirPedido({ campos, pedido, feitosHoje })
+        const todos = [...args.feitos, ...doTurno]
+        const inicio = inicioDoDiaBrasilia(agora)
+        const feitosHoje = contarDesde(todos, inicio, 'novos')
+        const mudancasHoje = contarDesde(todos, inicio, 'mudancas')
+        const ativo = pedidoAtivo(todos)
+        let r: ResultadoPedido
+        if (nome === NOME_FERRAMENTA) r = conferirPedido({ campos, pedido, feitosHoje })
+        else if (nome === FERRAMENTA_ATUALIZAR) r = conferirAtualizacao({ campos, pedido, ativo, mudancasHoje })
+        else r = conferirCancelamento({ pedido, ativo, mudancasHoje })
         const resultado = textoDoResultado(r)
         args.aoResponder(resultado)
 
@@ -199,16 +216,21 @@ function ferramentaDeEncaminhamento(args: {
         } else if (r.tipo === 'limite') {
           await registrarEvento('encaminhamento_limite_atingido', {
             clienteId: contexto.clienteId,
-            detalhe: { ...detalhe, feitosHoje },
+            detalhe: {
+              ...detalhe,
+              ferramenta: nome,
+              ...(nome === NOME_FERRAMENTA ? { feitosHoje } : { mudancasHoje }),
+            },
           })
         }
         return resultado
       } catch (err) {
         logger.error('motor: erro na ferramenta de encaminhamento', {
+          ferramenta: nome,
           erro: err instanceof Error ? err.message : String(err),
         })
         args.aoResponder('erro')
-        return 'erro: não foi possível registrar agora. Não diga que encaminhou; peça para a pessoa tentar de novo em instantes.'
+        return 'erro: não foi possível registrar agora. Não diga que registrou, mudou ou cancelou; peça para a pessoa tentar de novo em instantes.'
       }
     },
   }

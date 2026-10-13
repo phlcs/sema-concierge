@@ -31,9 +31,12 @@ const Corpo = z.object({
   encaminhamentos: z
     .array(
       z.object({
+        // T10: novo, atualização ou cancelamento. Sem tipo = novo (roteiro anterior à T10)
+        tipo: z.enum(['novo', 'atualizacao', 'cancelamento']).default('novo'),
         campos: z.array(z.object({ nome: z.string().max(80), valor: z.string().max(300) })).max(30),
         intencao: z.string().max(300).nullable(),
         resumo: z.string().max(1000).nullable(),
+        mudou: z.string().max(300).nullable().default(null),
         em: z.iso.datetime(),
       }),
     )
@@ -79,9 +82,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }))
 
   const anteriores = corpo.encaminhamentos.map((e) => ({
+    tipo: e.tipo,
     campos: e.campos,
     intencao: e.intencao,
     resumo: e.resumo,
+    mudou: e.mudou,
     createdAt: new Date(e.em),
   }))
   const { mensagem, bloqueio, encaminhamentos, resultadosFerramenta } = await responderMensagem({
@@ -93,7 +98,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     contexto,
     encaminhamento: { camposPedido: cliente.camposPedido, porta: portaMemoria(anteriores) },
   })
-  const registrado = encaminhamentos.at(-1) ?? null
+  // O card avaliado é o do encaminhamento novo; atualizações e cancelamentos vão em
+  // "registrados", para o roteiro reenviar na rodada seguinte
+  const registrado = encaminhamentos.findLast((e) => e.tipo === 'novo') ?? null
 
   logger.info('bateria: resposta', { clienteId: cliente.id, bloqueio })
 
@@ -106,6 +113,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     leadIntencao: registrado?.intencao ?? null,
     leadResumo: registrado?.resumo ?? null,
     campos: registrado?.campos ?? null,
+    registrados: encaminhamentos.map((e) => ({
+      tipo: e.tipo,
+      campos: e.campos,
+      intencao: e.intencao,
+      resumo: e.resumo,
+      mudou: e.mudou,
+    })),
     bloqueio,
     ...infoProvedor(),
     versaoPrompt: VERSAO_PROMPT,

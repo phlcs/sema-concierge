@@ -28,6 +28,7 @@ import { precisaRevisar } from '@/lib/qa/keywords'
 import { portaWhatsapp, type EncaminhamentoRegistrado } from '@/lib/atendimento/encaminhamento'
 import { montarPacote } from '@/lib/atendimento/pacote'
 import { entregarEncaminhamento, type ClienteDestino } from '@/lib/atendimento/destino'
+import { atualizarResumoWhatsapp, carregarResumoWhatsapp } from '@/lib/atendimento/resumo'
 
 // Evento de assinatura recusada: no máximo 1 por minuto por processo, para que uma
 // enxurrada de chamadas falsas ao webhook não encha a tabela (o log registra todas)
@@ -332,6 +333,7 @@ async function tratarTurno(args: {
     ehPrimeiraMensagem,
     origemAnuncio,
     carregarHistorico: () => carregarHistorico(conversaId),
+    carregarResumo: () => carregarResumoWhatsapp(conversaId),
     contexto: contextoWhatsapp(cliente.id, conversaId),
     encaminhamento: {
       camposPedido: cliente.camposPedido,
@@ -401,6 +403,10 @@ async function tratarTurno(args: {
       })
     }
   }
+
+  // Resumo das mensagens que saíram da janela (T11): a resposta já saiu, então não
+  // atrasa a pessoa; vale a partir da próxima mensagem. Nunca lança.
+  await atualizarResumoWhatsapp(conversaId, contextoWhatsapp(cliente.id, conversaId))
 }
 
 async function enviarEncaminhamento(args: {

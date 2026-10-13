@@ -35,8 +35,14 @@ export async function acharOuCriarConversa(
   }
 }
 
-// Teto de mensagens enviadas ao modelo como histórico
-export const LIMITE_HISTORICO = 40
+// Teto de mensagens enviadas ao modelo como histórico. O que sai desta janela vira
+// o resumo da conversa (T11). LIMITE_HISTORICO no ambiente encurta a janela (útil em
+// dev para testar o resumo com poucas mensagens); padrão 40.
+function limiteHistorico(): number {
+  const n = Number(process.env.LIMITE_HISTORICO)
+  return Number.isInteger(n) && n >= 2 ? n : 40
+}
+export const LIMITE_HISTORICO = limiteHistorico()
 
 export async function carregarHistorico(conversationId: string): Promise<HistoryMessage[]> {
   const msgs = await prisma.whatsappMessage.findMany({

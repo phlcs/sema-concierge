@@ -3,8 +3,8 @@
   "nomeNoCadastro": "Candê",
   "pedido": "fazer uma reserva de mesa para até 10 pessoas",
   "dadosDoPedido": ["dia", "horário", "número de pessoas", "nome"],
-  "pedidoGeraEncaminhamento": false,
-  "regraDoEncaminhamento": "Reserva de até 10 pessoas é feita pelo formulário do site, sem card. Acima de 10 pessoas, o atendente encaminha para o time (card).",
+  "pedidoGeraEncaminhamento": "opcional",
+  "regraDoEncaminhamento": "Reserva de até 10 pessoas: o atendente oferece as duas opções. Se a pessoa escolher reservar pela conversa, ele junta os dados e encaminha (card); se escolher o site, manda o link do formulário, sem card. Acima de 10 pessoas, sempre pela conversa, com card.",
   "pedidoQueEncaminha": "fazer uma reserva para um grupo de 12 a 16 pessoas (confraternização ou jantar de empresa)",
   "assuntos": ["Festival de Parrilla no fim de semana", "cardápio e opções sem carne", "ambientes (jardim, varanda)", "crianças", "aniversário"],
   "perguntaSemResposta": "tem wi-fi e tomada perto das mesas?",
@@ -12,5 +12,5 @@
   "nuncaPodeDizer": [
     { "nome": "passou o telefone da casa (regra atual: não passar)", "padrao": "97061.?4486" }
   ],
-  "observacoes": "Regra de encaminhamento da v4 (02/10/2026). Se o cérebro mudar, ajustar pedidoGeraEncaminhamento e pedidoQueEncaminha."
+  "observacoes": "Regra de encaminhamento de 13/10/2026: reserva até 10 pela conversa ou pelo site, à escolha da pessoa. Se o cérebro mudar, ajustar pedidoGeraEncaminhamento e pedidoQueEncaminha."
 }

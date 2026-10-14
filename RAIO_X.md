@@ -184,16 +184,28 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
 | `AVISOS` (T12) | CONTEXTO (`AVISOS_E_NOVIDADES:`): eventos, mudanças, fatos pontuais | vazio |
 | `AJUSTE_CERCA` (T12) | CONTEXTO (`AJUSTE_DA_CERCA:`): ajuste da cerca do modo para este cliente | vazio |
 
-- Saíram na T12: `O_QUE_SEMPRE_ESCALA` (virou `LIMITADORES`) e `CAMPO_LIVRE` (virou `AVISOS`). A IA não lê mais essas chaves e o admin recusa cérebro com elas. Cérebro antigo gravado no banco continua funcionando, mas sem esses dois campos, até ser migrado (T13).
+- Saíram na T12: `O_QUE_SEMPRE_ESCALA` (virou `LIMITADORES`) e `CAMPO_LIVRE` (virou `AVISOS`). A IA não lê mais essas chaves e o admin recusa cérebro com elas. Cérebro antigo gravado no banco continua funcionando, mas sem esses dois campos, até ser migrado.
 - Regras de leitura (`toCerebro()` e `leiaCampo()`): se o JSON não for objeto vira `{}`; chave ausente vira `''`; valor não-string passa por `String()` (objeto vira `"[object Object]"`, array vira itens separados por vírgula). Chaves fora dessa lista são **ignoradas**.
 - O nome no prompt vem de `cerebro.NOME_DO_NEGOCIO`, não da coluna `Cliente.nomeNegocio`.
 
 ### Edição no admin
 - Desde a T8 o cérebro é editado na tela de cadastro (`/admin/clientes/[id]`, um textarea no meio do formulário) e salvo junto com o resto pelo `PUT /api/admin/clientes/[id]` (com `window.confirm`). A antiga `/admin/clientes/[id]/cerebro` só redireciona; o `CerebroEditor.tsx` e a rota `POST .../cerebro` foram removidos.
 - **Validação só dos nomes das chaves** (`src/lib/cerebro/chaves.ts` → `lerCerebro()`): precisa ser objeto JSON e toda chave precisa estar em `CHAVES_CEREBRO` (as 13 da tabela acima); senão a mensagem diz "Chave desconhecida no cérebro: X". Tipos, campo vazio e tamanho: **não são checados**. Cérebro já gravado com chave fora da lista continua funcionando, mas só salva de novo depois de corrigido. A lista muda junto com o formato do cérebro (mudou na T12). Cliente novo começa com as 13 chaves vazias.
-- Histórico de versões do cérebro: **não existe** (sobrescreve).
+- Histórico de versões do cérebro: **não existe** (sobrescreve). Antes de trocar um cérebro, guardar o anterior fora do sistema (a T13 fez assim com o Candê; rollback no sistema é a T37).
 - O link de teste usa o mesmo cérebro do cliente (`Cliente.cerebro`), editado na mesma tela.
 - Login do admin: senha única em `ADMIN_PASSWORD` (`src/app/api/admin/login/route.ts`), JWT em cookie `auth_token` com `sub: 'admin'`, validade 7 dias (`src/lib/auth.ts`).
+
+### Como o cérebro é gerado (T13)
+- Fora do código: skill `cerebro-concierge` na conta do claude.ai. O Pedro cola o JSON no admin.
+- Gera só fatos e regras do cliente; a postura está no prompt base e no modo. O que vai em cada chave:
+  - `COMO_FUNCIONA`: só fatos da operação (como se faz o pedido, políticas, canais oficiais, links), **até 2 mil caracteres**.
+  - `LIMITADORES`: regras de decisão em texto curto (quando registrar pedido, o que perguntar antes, o que nunca fazer, lista "não afirme").
+  - `AVISOS`: só o que é do momento (evento, chef convidado, mudança); vazio quando não há.
+  - Posicionamento em `RESUMO_NEGOCIO`; glossário do setor em `PERGUNTAS_FREQUENTES`.
+  - Documentos: ainda sem chave (T14).
+- Questionário fixo por modo. A skill entrega também a lista do cadastro (modo, campos do pedido, canais de fallback) e a ficha da bateria (`bateria/clientes/<cliente>.json`).
+- Validador da skill (`scripts/validar_cerebro.py`): as 13 chaves, valor string, `COMO_FUNCIONA` ≤ 2.000, sem termos de `validate-output.ts` (nomes de IA, títulos do prompt, nomes de chave e de ferramenta), sem travessão, avisos de postura antiga e de regras que já não valem ("um encaminhamento por conversa", "não dá para alterar").
+- **Candê migrado (T13, dev)**: modo Hospitalidade; campos do pedido "nome" e "data e horário para reserva"; o número de pessoas é pedido pelo `LIMITADORES` e vai no resumo. Cérebro de 28,5 mil para 16,6 mil caracteres (`COMO_FUNCIONA` de 12 mil para 1,5 mil). Não existe cérebro do Candê em produção. Bateria: 12 de 13 no automático antes, 10 de 13 depois, mas no real (descontando a régua desatualizada da T10, ver T48) empata; o pedido de contato depois de reservar passou a chegar ao time. Ponto aberto: com "data e horário para reserva" obrigatório, pedido de contato sem reserva não sai.
 
 ---
 

@@ -163,8 +163,21 @@ A postura do atendimento fica no código, não no cérebro: uma correção vale 
   - **Resolução:** diagnostica e resolve dentro da conversa; encaminhar é o último recurso. Cerca invertida: orienta o caso, mas só com base no cérebro; o que não está lá ou envolve dinheiro, segurança ou saúde, escala.
   - Cada modo diz também o que fazer depois do encaminhamento (pergunta nova, alteração, cancelamento, cobrança de retorno, insistência).
 - **Desvios:** reclamação (fora do modo resolução), vaga de emprego, fornecedor, imprensa/parceria e urgência recebem o canal certo do cadastro (SAC, RH, compras, imprensa, contato rápido; vazio cai no principal) e **nunca** viram encaminhamento. Elogio, assunto fora do negócio e golpe são tratados sem canal.
-- **Chaves do cérebro:** `NOME_ASSISTENTE`, `NOME_DO_NEGOCIO`, `NOME_PRESTADOR`, `PRAZO_RETORNO`, `RESUMO_NEGOCIO`, `SERVICOS`, `PRECOS_GERAIS`, `HORARIOS`, `COMO_FUNCIONA`, `PERGUNTAS_FREQUENTES`, mais as novas `LIMITADORES` (regras de decisão do cliente: o que encaminha e o que não), `AVISOS` (eventos, novidades, mudanças) e `AJUSTE_CERCA` (ajuste da cerca do modo para este cliente). `O_QUE_SEMPRE_ESCALA` e `CAMPO_LIVRE` saíram: o admin recusa e a IA não lê mais. Cérebro antigo precisa ser migrado (renomear para `LIMITADORES` e `AVISOS`).
+- **Chaves do cérebro:** `NOME_ASSISTENTE`, `NOME_DO_NEGOCIO`, `NOME_PRESTADOR`, `PRAZO_RETORNO`, `RESUMO_NEGOCIO`, `SERVICOS`, `PRECOS_GERAIS`, `HORARIOS`, `COMO_FUNCIONA`, `PERGUNTAS_FREQUENTES`, mais as novas `LIMITADORES` (regras de decisão do cliente: o que encaminha e o que não), `AVISOS` (eventos, novidades, mudanças) e `AJUSTE_CERCA` (ajuste da cerca do modo para este cliente). `O_QUE_SEMPRE_ESCALA` e `CAMPO_LIVRE` saíram: o admin recusa e a IA não lê mais. Cérebro antigo precisa ser migrado (ver "Gerar e migrar cérebro" abaixo).
 - Ao mudar o prompt, mude também `VERSAO_PROMPT` (gravado em cada resposta) e os marcadores de vazamento em `src/lib/ai/validate-output.ts`.
+
+## Gerar e migrar cérebro (T13)
+
+O cérebro é gerado pela skill `cerebro-concierge`, que fica na conta do claude.ai (não no repositório). Desde a T13 ela gera **só o que é do cliente**, nas 13 chaves de `src/lib/cerebro/chaves.ts`:
+
+- Fatos em `RESUMO_NEGOCIO`, `SERVICOS`, `PRECOS_GERAIS`, `HORARIOS`, `PERGUNTAS_FREQUENTES` (com o glossário do setor) e `COMO_FUNCIONA`, este só com fatos da operação e **até 2 mil caracteres**.
+- Regras de decisão do cliente em texto curto no `LIMITADORES`: quando registrar pedido, o que perguntar antes, o que nunca fazer, a lista do que não afirmar.
+- Fatos do momento (evento, chef convidado, mudança) no `AVISOS`.
+- Nada de postura (tom, uma pergunta por vez, o que fazer depois do encaminhamento): isso está no prompt base e no modo.
+
+A skill segue um questionário fixo por modo e entrega três coisas: o JSON do cérebro (com um validador que acusa chave errada, `COMO_FUNCIONA` acima do limite, termos que derrubam a resposta, travessão e regras antigas), a lista do que vai no cadastro (modo, campos do pedido, canais de fallback) e a ficha da bateria (`bateria/clientes/<cliente>.json`). Antes de trocar um cérebro, guarde o anterior: o sistema não tem histórico de versões. Depois, rode a bateria e compare com a rodada anterior.
+
+O Candê foi o primeiro cérebro migrado (T13), no modo Hospitalidade.
 
 ## Bateria de personas
 

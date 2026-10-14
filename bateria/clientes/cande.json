@@ -12,5 +12,5 @@
   "nuncaPodeDizer": [
     { "nome": "passou o telefone da casa (regra atual: não passar)", "padrao": "97061.?4486" }
   ],
-  "observacoes": "Regra de encaminhamento de 13/10/2026: reserva até 10 pela conversa ou pelo site, à escolha da pessoa. Se o cérebro mudar, ajustar pedidoGeraEncaminhamento e pedidoQueEncaminha."
+  "observacoes": "Regra de encaminhamento de 13/10/2026: reserva até 10 pela conversa ou pelo site, à escolha da pessoa. Desde a T13 (14/10/2026) o cérebro está no formato novo, modo Hospitalidade, com campos do pedido nome e data e horário para reserva; o número de pessoas vai no resumo. Se o cérebro mudar, ajustar pedidoGeraEncaminhamento e pedidoQueEncaminha."
 }

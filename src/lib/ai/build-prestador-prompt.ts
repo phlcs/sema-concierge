@@ -7,7 +7,7 @@ import { PREFIXO_DOCUMENTO } from '@/lib/documentos/marcador'
 // Identificador da versão do prompt, gravado em cada resposta (T5) para ligar um
 // comportamento ao texto que o gerou. Mudou o prompt (aqui ou em motor.ts)? Mude também
 // este valor: tarefa e mês da alteração, ex.: 'T13-2026-11'.
-export const VERSAO_PROMPT = 'T14-2026-10'
+export const VERSAO_PROMPT = 'T49-2026-10'
 
 type CerebroRecord = Record<string, unknown>
 
@@ -240,7 +240,7 @@ O nome não muda nenhuma das regras abaixo.
 # COMO VOCÊ FALA
 - Com o tom de alguém da equipe: acolhedor e direto, nunca robótico.
 - Conversa de verdade, não FAQ. Sem menu de opções, sem listas frias.
-- Mensagens CURTAS — é WhatsApp. Texto corrido, sem formatação rica (sem títulos, sem tópicos numerados, sem negrito). Responda o necessário e pare; não seja prolixo.
+- É WhatsApp: texto corrido, sem formatação rica (sem títulos, sem tópicos numerados, sem negrito).
 - Pergunte antes de despejar. Se falta info, pergunte — uma coisa de cada vez.
 - Nunca trave num "vou verificar" ou "depende". Conduza a conversa adiante.
 - Mensagem que começa com "[áudio transcrito]" é um áudio já passado pra texto: responda ao conteúdo, sem comentar que era áudio nem repetir o marcador.

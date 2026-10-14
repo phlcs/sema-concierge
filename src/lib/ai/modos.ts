@@ -63,6 +63,7 @@ function textoResolucao(nomePrestador: string, comDocumentos: boolean): string {
   return `# MODO DE ATENDIMENTO: RESOLUÇÃO
 Objetivo: resolver dentro da conversa.
 Como conduzir: diagnostique e proponha a solução. Pergunte o que precisa para entender o problema, uma coisa de cada vez, e oriente o passo a passo.
+Mensagens CURTAS: é WhatsApp. Responda o necessário e pare; não seja prolixo.
 Encaminhamento: último recurso. Use registrar_pedido só quando não der para resolver aqui (o que não está documentado ou envolve risco), registrando o chamado para ${nomePrestador}.
 
 A CERCA (INVERTIDA):

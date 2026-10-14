@@ -205,7 +205,7 @@ Na Anthropic o system vai em `system[]` com `cache_control`; no Gemini em `syste
   - Documentos: ainda sem chave (T14).
 - Questionário fixo por modo. A skill entrega também a lista do cadastro (modo, campos do pedido, canais de fallback) e a ficha da bateria (`bateria/clientes/<cliente>.json`).
 - Validador da skill (`scripts/validar_cerebro.py`): as 13 chaves, valor string, `COMO_FUNCIONA` ≤ 2.000, sem termos de `validate-output.ts` (nomes de IA, títulos do prompt, nomes de chave e de ferramenta), sem travessão, avisos de postura antiga e de regras que já não valem ("um encaminhamento por conversa", "não dá para alterar").
-- **Candê migrado (T13, dev)**: modo Hospitalidade; campos do pedido "nome" e "data e horário para reserva"; o número de pessoas é pedido pelo `LIMITADORES` e vai no resumo. Cérebro de 28,5 mil para 16,5 mil caracteres (`COMO_FUNCIONA` de 12 mil para 1,5 mil). Não existe cérebro do Candê em produção.
+- **Candê migrado (T13, dev)**: modo Hospitalidade; campos do pedido "nome" e "data e horário para reserva"; o número de pessoas é pedido pelo `LIMITADORES` e vai no resumo. Cérebro de 28,5 mil para 16,6 mil caracteres (`COMO_FUNCIONA` de 12 mil para 1,5 mil). Não existe cérebro do Candê em produção. Bateria: 12 de 13 no automático antes, 10 de 13 depois, mas no real (descontando a régua desatualizada da T10, ver T48) empata; o pedido de contato depois de reservar passou a chegar ao time. Ponto aberto: com "data e horário para reserva" obrigatório, pedido de contato sem reserva não sai.
 
 ---
 

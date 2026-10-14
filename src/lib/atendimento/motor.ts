@@ -11,6 +11,13 @@ import { registrarEvento } from '@/lib/eventos'
 import { logger } from '@/lib/logger'
 import { inicioDoDiaBrasilia } from '@/lib/ai/build-prestador-prompt'
 import type { Ferramentas } from '@/lib/ai/ferramentas'
+import type { DocumentosDoCliente } from '@/lib/documentos'
+import {
+  definicoesDocumentos,
+  executorDocumentos,
+  type DocumentoEnviado,
+  type ResultadoBusca,
+} from '@/lib/documentos/ferramentas'
 import {
   FERRAMENTA_ATUALIZAR,
   FERRAMENTA_CANCELAR,
@@ -65,6 +72,10 @@ export type ResultadoMotor = {
   encaminhamentos: EncaminhamentoRegistrado[]
   // Resultado de cada chamada da ferramenta no turno ("registrado", "faltando: data"...)
   resultadosFerramenta: string[]
+  // Documentos que a IA mandou enviar neste turno (T14). A porta envia ou mostra.
+  documentosEnviados: DocumentoEnviado[]
+  // Buscas nos documentos feitas no turno (T14)
+  buscas: ResultadoBusca[]
 }
 
 // Motor de atendimento compartilhado pelas "portas" (webhook do WhatsApp, demo):
@@ -87,6 +98,8 @@ export async function responderMensagem(args: {
   encaminhamento: { camposPedido: unknown; porta: PortaEncaminhamento }
   // Modo e canais de fallback do cadastro (T8), lidos pelo prompt (T12)
   cadastro: { modo: unknown; canaisFallback: unknown }
+  // Documentos do cliente (T14). Sem documento pronto, nada muda.
+  documentos?: DocumentosDoCliente
 }): Promise<ResultadoMotor> {
   const { cerebro, mensagens, ehPrimeiraMensagem, origemAnuncio, carregarHistorico, contexto } = args
   const itens = mensagens.map((m) => (typeof m === 'string' ? { texto: m, deAudio: false } : m))
@@ -120,6 +133,8 @@ export async function responderMensagem(args: {
       bloqueio: inputCheck.reason,
       encaminhamentos: [],
       resultadosFerramenta: [],
+      documentosEnviados: [],
+      buscas: [],
     }
   }
 
@@ -134,7 +149,8 @@ export async function responderMensagem(args: {
 
   // Ordem: prompt base, modo, cérebro e canais (fixo por cliente, cacheável), dados do
   // momento, estado, resumo, continuação/anúncio, histórico
-  const systemPrompt = buildPrestadorPrompt(cerebro, args.cadastro)
+  const documentos = args.documentos ?? { vectorStoreId: null, lista: [] }
+  const systemPrompt = buildPrestadorPrompt(cerebro, args.cadastro, documentos)
   let systemPromptMomento = buildDadosDoMomento({ agora, ultimaMensagemPessoaEm })
   systemPromptMomento += `\n\n${blocoEstado(feitos, agora)}`
   if (resumo) systemPromptMomento += blocoResumo(resumo)
@@ -143,7 +159,9 @@ export async function responderMensagem(args: {
 
   const encaminhamentos: EncaminhamentoRegistrado[] = []
   const resultadosFerramenta: string[] = []
-  const ferramentas = ferramentaDeEncaminhamento({
+  const documentosEnviados: DocumentoEnviado[] = []
+  const buscas: ResultadoBusca[] = []
+  const deEncaminhamento = ferramentaDeEncaminhamento({
     camposPedido: args.encaminhamento.camposPedido,
     porta: args.encaminhamento.porta,
     feitos,
@@ -151,6 +169,17 @@ export async function responderMensagem(args: {
     aoRegistrar: (novo) => encaminhamentos.push(novo),
     aoResponder: (resultado) => resultadosFerramenta.push(resultado),
   })
+  const deDocumentos = executorDocumentos({
+    docs: documentos,
+    contexto,
+    aoEnviar: (doc) => documentosEnviados.push(doc),
+    aoBuscar: (resultado) => buscas.push(resultado),
+  })
+  const ferramentas: Ferramentas = {
+    definicoes: [...deEncaminhamento.definicoes, ...definicoesDocumentos(documentos)],
+    executar: async (nome, pedido) =>
+      (await deDocumentos(nome, pedido)) ?? deEncaminhamento.executar(nome, pedido),
+  }
 
   let aiResponse: AiResponse
   try {
@@ -175,6 +204,8 @@ export async function responderMensagem(args: {
     bloqueio: null,
     encaminhamentos,
     resultadosFerramenta,
+    documentosEnviados,
+    buscas,
   }
 }
 

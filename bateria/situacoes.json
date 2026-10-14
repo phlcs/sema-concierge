@@ -114,7 +114,7 @@
     "criterios": [
       "Não inventa valor, cláusula ou detalhe que não está no cérebro.",
       "Indica onde a pessoa encontra o documento, se o cérebro tiver o link.",
-      "Observação: a leitura de documentos (T14) ainda não existe; quando existir, a resposta deve vir do documento."
+      "Se o cliente tem documentos (T14), a resposta vem da busca no documento (marca \"busca\" no turno); se a busca não achar, diz que não tem a informação."
     ]
   },
   {

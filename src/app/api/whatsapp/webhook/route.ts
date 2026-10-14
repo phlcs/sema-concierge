@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { enviarTexto, marcarComoLidaEDigitando } from '@/lib/whatsapp/send'
+import { enviarDocumento, enviarTexto, marcarComoLidaEDigitando } from '@/lib/whatsapp/send'
 import {
   FRASE_AUDIO_LONGO,
   FRASE_MIDIA,
@@ -29,6 +29,9 @@ import { portaWhatsapp, type EncaminhamentoRegistrado } from '@/lib/atendimento/
 import { montarPacote } from '@/lib/atendimento/pacote'
 import { entregarEncaminhamento, type ClienteDestino } from '@/lib/atendimento/destino'
 import { atualizarResumoWhatsapp, carregarResumoWhatsapp } from '@/lib/atendimento/resumo'
+import { carregarDocumentos } from '@/lib/documentos'
+import { marcadorDocumento } from '@/lib/documentos/marcador'
+import type { DocumentoEnviado } from '@/lib/documentos/ferramentas'
 
 // Evento de assinatura recusada: no máximo 1 por minuto por processo, para que uma
 // enxurrada de chamadas falsas ao webhook não encha a tabela (o log registra todas)
@@ -340,8 +343,9 @@ async function tratarTurno(args: {
       camposPedido: cliente.camposPedido,
       porta: portaWhatsapp(cliente.id, conversaId),
     },
+    documentos: await carregarDocumentos(cliente.id),
   })
-  const { bloqueio, encaminhamentos } = resultado
+  const { bloqueio, encaminhamentos, documentosEnviados } = resultado
   if (bloqueio) {
     // Só um trecho vai pro log (pra auditar o que é bloqueado); o texto não é gravado
     logger.warn('webhook: entrada bloqueada por validateInput', {
@@ -364,6 +368,9 @@ async function tratarTurno(args: {
     mensagem,
     clienteId: cliente.id,
   })
+
+  // Documentos pedidos pela IA neste turno (T14): saem depois do texto, na ordem.
+  await enviarDocumentos({ documentos: documentosEnviados, conversaId, clienteId: cliente.id, phoneNumberId, deNumero })
 
   try {
     if (precisaRevisar(texto) || precisaRevisar(mensagem)) {
@@ -408,6 +415,39 @@ async function tratarTurno(args: {
   // Resumo das mensagens que saíram da janela (T11): a resposta já saiu, então não
   // atrasa a pessoa; vale a partir da próxima mensagem. Nunca lança.
   await atualizarResumoWhatsapp(conversaId, contextoWhatsapp(cliente.id, conversaId))
+}
+
+// Manda cada PDF e grava o marcador no histórico só do que a Meta aceitou, para a IA
+// saber no próximo turno o que já foi enviado. Nunca lança.
+async function enviarDocumentos(args: {
+  documentos: DocumentoEnviado[]
+  conversaId: string
+  clienteId: string
+  phoneNumberId: string
+  deNumero: string
+}): Promise<void> {
+  for (const doc of args.documentos) {
+    try {
+      const arquivo = await prisma.documento.findFirst({
+        where: { id: doc.id, clienteId: args.clienteId },
+        select: { conteudo: true, arquivoNome: true },
+      })
+      if (!arquivo) continue
+      const ok = await enviarDocumento({
+        token: process.env.WHATSAPP_TOKEN ?? '',
+        phoneNumberId: args.phoneNumberId,
+        para: args.deNumero,
+        arquivo: Buffer.from(arquivo.conteudo),
+        arquivoNome: arquivo.arquivoNome,
+        clienteId: args.clienteId,
+      })
+      if (ok) await salvarMensagem(args.conversaId, 'ASSISTANT', marcadorDocumento(doc.nome))
+    } catch (err) {
+      logger.error('webhook: erro ao enviar documento', {
+        erro: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 }
 
 async function enviarEncaminhamento(args: {

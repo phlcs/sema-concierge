@@ -60,6 +60,21 @@ O encaminhamento é feito por **ferramentas** da IA (`registrar_pedido`, `atuali
 - Eventos: `Encaminhamento enviado` (com o `tipo` no detalhe), `Encaminhamento recusado por campo faltando`, `Limite diário de encaminhamentos atingido` (com a ferramenta no detalhe), `Destino do encaminhamento não implementado`.
 - Cada encaminhamento custa uma ida e volta a mais à IA (duas chamadas, tokens somados no registro técnico).
 
+## Documentos (T14)
+
+Cada cliente pode ter **PDFs** (cardápio, manual, tabela) que a IA consulta e, se marcados, envia na conversa. Assim os fatos de referência podem sair do cérebro.
+
+- **No admin**, na tela do cliente (`/admin/clientes/[id]`), seção **Documentos**: sobe o PDF (até 10 MB, só PDF com texto) com o nome que a IA vê (vazio = nome do arquivo; não pode repetir no mesmo cliente). O upload espera o arquivo ficar buscável e mostra o status: "Pronto para busca", "Processando…" (recarregue depois) ou "Falha" (PDF escaneado, sem texto, ou erro da OpenAI). Cada documento tem a marcação **Pode ser enviado**, que começa **desligada**, e o botão **Excluir**.
+- **Onde fica:** o arquivo no banco (tabela `Documento`, para mandar pelo WhatsApp) e uma cópia na "pasta de busca" (vector store) do cliente na OpenAI, criada no primeiro upload (`Cliente.vectorStoreId`). Os documentos ficam hospedados na OpenAI: isso precisa constar no contrato.
+- **Buscar (`buscar_documentos`):** a busca pronta da OpenAI devolve até 5 trechos parecidos com a consulta, com o nome do documento. A IA busca antes de dizer que não sabe; usa só o que os trechos dizem; sem resposta, diz que não tem a informação. Teto de 5 buscas por resposta. Se cérebro e documento divergirem, vale o cérebro.
+- **Enviar (`enviar_documento`):** só os documentos prontos e marcados como "pode ser enviado". No WhatsApp o PDF chega logo depois da resposta em texto; no link de teste aparece um anexo que abre o PDF; na bateria nada é enviado (o relatório mostra "enviou documento: X"). O envio fica no histórico como `[documento enviado] Nome`, para a IA saber o que já mandou.
+- **Para quem vale:** WhatsApp, link de teste e bateria, com os mesmos documentos. Cliente sem documento pronto: nada muda (o prompt fica idêntico ao de antes).
+- **Só OpenAI** (`AI_PROVIDER=openai`), como o encaminhamento. A busca e o upload usam a `OPENAI_API_KEY` (a mesma da transcrição de áudio).
+- **Eventos (tema "Documentos"):** "Documento consultado" (informativo, com o documento e o começo do trecho usado; nunca a pergunta da pessoa), "Busca nos documentos sem resultado", "Falha na busca nos documentos", "Falha no envio do documento", "Falha ao preparar documento para busca".
+- Cada resposta que busca fica alguns segundos mais lenta (mais idas e voltas à IA: até 4 rodadas com ferramenta por resposta).
+- Riscos aceitos: a busca pode trazer o trecho errado; documento desatualizado é responsabilidade do cliente; instrução escondida dentro de documento não é tratada (a IA é avisada de que trecho é dado, não ordem).
+- Código: `src/lib/documentos/` (upload, busca e ferramentas), `src/app/admin/clientes/Documentos.tsx`, `src/lib/whatsapp/send.ts` (`enviarDocumento`).
+
 ## Rotas
 
 APIs:
@@ -77,8 +92,12 @@ APIs:
 | `POST /api/admin/clientes/[id]/status` | Altera o status do cliente (e o tira da lista do interruptor geral) |
 | `POST /api/admin/interruptor` | Interruptor geral de manutenção: `ligar` (pede a senha de novo) ou `desligar` |
 | `GET /api/admin/clientes/[id]/conversas/[conversaId]/mensagens` | Lê mensagens de uma conversa |
+| `POST /api/admin/clientes/[id]/documentos` | Sobe um PDF do cliente (T14): `multipart` com `arquivo` e `nome` |
+| `PATCH /api/admin/clientes/[id]/documentos/[docId]` | Liga ou desliga "pode ser enviado" (`{ podeEnviar }`) |
+| `DELETE /api/admin/clientes/[id]/documentos/[docId]` | Exclui o documento (banco e OpenAI) |
 | `POST /demo/[token]/mensagem` | Mensagem na demo |
 | `POST /demo/[token]/reiniciar` | Reinicia a sessão da demo |
+| `GET /demo/[token]/documento?nome=X` | Abre o PDF enviado pela IA no link de teste (T14). Só com o link liberado e só documento marcado como "pode ser enviado" |
 | `GET /api/bateria/clientes` | Bateria (T6): lista os cadastros. Só com `BATERIA_TOKEN` |
 | `GET /api/bateria/clientes/[id]/cerebro` | Bateria: devolve o cérebro do cliente. Só com `BATERIA_TOKEN` |
 | `POST /api/bateria/clientes/[id]/resposta` | Bateria: uma resposta do Concierge, sem gravar conversa. Só com `BATERIA_TOKEN` |
@@ -101,7 +120,7 @@ Modelo em [`.env.example`](./.env.example).
 | `AI_API_KEY` | Chave do provider escolhido |
 | `AI_MODEL` | Opcional; senão usa o padrão do provider |
 | `AI_AUDIO_MODEL` | Opcional; modelo de transcrição de áudio (OpenAI). Vazio = `gpt-4o-mini-transcribe` |
-| `OPENAI_API_KEY` | Chave usada na transcrição de áudio, qualquer que seja o `AI_PROVIDER` (com `AI_PROVIDER=openai`, a `AI_API_KEY` também serve) |
+| `OPENAI_API_KEY` | Chave usada na transcrição de áudio e nos documentos (upload e busca, T14), qualquer que seja o `AI_PROVIDER` (com `AI_PROVIDER=openai`, a `AI_API_KEY` também serve) |
 | `REDIS_URL` | Redis (healthcheck) |
 | `RESEND_MODE` | `mock` (padrão, só loga) ou `real` |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio do e-mail de encaminhamento no modo `real`. O nome do remetente vem do cadastro do cliente |
@@ -113,7 +132,7 @@ Modelo em [`.env.example`](./.env.example).
 
 ## Observabilidade
 
-- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Eventos de funções ainda não construídas (busca em documentos) entram no catálogo quando a função existir.
+- **Eventos** (`Evento`, tela `/admin/eventos`): o que deu errado ou merece atenção, com tema, gravidade, cliente, data e um detalhe só com identificadores (nunca texto de mensagem, nome, telefone ou e-mail). O catálogo fica em `src/lib/eventos.ts`; para registrar, `registrarEvento('chave', { clienteId, detalhe })`. Gravar nunca derruba o atendimento. Exceção ao "só identificadores": o evento "Documento consultado" (T14) leva o começo do trecho do documento do cliente usado na resposta.
 - **Registro técnico por chamada de IA** (`RegistroResposta`, sem tela por enquanto): modelo, versão do prompt (`VERSAO_PROMPT` em `build-prestador-prompt.ts`: mude junto com qualquer alteração de prompt), tokens de entrada/saída/cache, tempo, ferramentas chamadas (nome e resultado), custo estimado, origem (`whatsapp`, `teste`, `bateria`) e função (`resposta`, `busca_documentos`, `resumo`, `transcricao`). Os preços ficam em `src/lib/ai/precos.ts`.
 - **Interruptor geral** (tela `/admin/clientes`): coloca todos os clientes ativos em manutenção, pedindo a senha do painel. "Voltar ao normal" reativa só os clientes que o próprio interruptor colocou; o botão de cada cliente manda mais: quem já estava em manutenção continua, e quem teve o botão mexido à mão sai da lista do interruptor.
 
@@ -150,17 +169,18 @@ A tela tem, numa página só:
 - **E-mail que recebe os encaminhamentos**, **remetente** (vazio = "Concierge [nome do negócio]") e **destino** (só e-mail por enquanto).
 - **Canais de fallback**: o principal é obrigatório; SAC, RH, compras, imprensa/parcerias e contato rápido são opcionais. Cada um com tipo (e-mail, telefone, WhatsApp, outro) e contato.
 - **WhatsApp** (opcional): ID do número na Meta, ID da conta e número exibido no link de teste. Cliente ativo não pode ficar sem o ID do número.
+- **Documentos** (T14), abaixo do formulário: PDFs que a IA consulta e envia (ver "Documentos" acima). Salvam na hora, sem o botão "Salvar cadastro".
 
 Todos os campos já valem no atendimento: campos do pedido (T9), remetente e destino (T10), modo e canais de fallback (T12).
 
 ## Prompt base e modos (T12)
 
-A postura do atendimento fica no código, não no cérebro: uma correção vale para todos os clientes. O prompt é montado nesta ordem: prompt base (`src/lib/ai/build-prestador-prompt.ts`), texto do modo (`src/lib/ai/modos.ts`), cérebro, canais do cliente, dados do momento e conversa.
+A postura do atendimento fica no código, não no cérebro: uma correção vale para todos os clientes. O prompt é montado nesta ordem: prompt base (`src/lib/ai/build-prestador-prompt.ts`), texto do modo (`src/lib/ai/modos.ts`), cérebro, documentos (T14, só quando o cliente tem documento pronto), canais do cliente, dados do momento e conversa.
 
 - **Modo** (do cadastro), um por cliente. Cliente sem modo usa Conversão.
   - **Conversão:** conduz e qualifica para levar ao encaminhamento. Cerca ligada: explica como funciona, não dá parecer sobre o caso.
   - **Hospitalidade:** informa bem, sem empurrar. Encaminha só se a pessoa pedir algo que a equipe precisa fazer. Cerca neutra.
-  - **Resolução:** diagnostica e resolve dentro da conversa; encaminhar é o último recurso. Cerca invertida: orienta o caso, mas só com base no cérebro; o que não está lá ou envolve dinheiro, segurança ou saúde, escala.
+  - **Resolução:** diagnostica e resolve dentro da conversa; encaminhar é o último recurso. Cerca invertida: orienta o caso, mas só com base no cérebro (e nos documentos, quando houver, T14); o que não está lá ou envolve dinheiro, segurança ou saúde, escala.
   - Cada modo diz também o que fazer depois do encaminhamento (pergunta nova, alteração, cancelamento, cobrança de retorno, insistência).
 - **Desvios:** reclamação (fora do modo resolução), vaga de emprego, fornecedor, imprensa/parceria e urgência recebem o canal certo do cadastro (SAC, RH, compras, imprensa, contato rápido; vazio cai no principal) e **nunca** viram encaminhamento. Elogio, assunto fora do negócio e golpe são tratados sem canal.
 - **Chaves do cérebro:** `NOME_ASSISTENTE`, `NOME_DO_NEGOCIO`, `NOME_PRESTADOR`, `PRAZO_RETORNO`, `RESUMO_NEGOCIO`, `SERVICOS`, `PRECOS_GERAIS`, `HORARIOS`, `COMO_FUNCIONA`, `PERGUNTAS_FREQUENTES`, mais as novas `LIMITADORES` (regras de decisão do cliente: o que encaminha e o que não), `AVISOS` (eventos, novidades, mudanças) e `AJUSTE_CERCA` (ajuste da cerca do modo para este cliente). `O_QUE_SEMPRE_ESCALA` e `CAMPO_LIVRE` saíram: o admin recusa e a IA não lê mais. Cérebro antigo precisa ser migrado (ver "Gerar e migrar cérebro" abaixo).

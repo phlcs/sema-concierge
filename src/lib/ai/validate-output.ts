@@ -32,9 +32,12 @@ const LEAK_MARKERS: RegExp[] = [
   /A\s+CERCA\s+\((LIGADA|NEUTRA|INVERTIDA)\)/,
   /DEPOIS\s+DO\s+ENCAMINHAMENTO\s+\(/,
   /\b(NOME_DO_NEGOCIO|NOME_ASSISTENTE|NOME_PRESTADOR|PRAZO_RETORNO|RESUMO_NEGOCIO|PRECOS_GERAIS|COMO_FUNCIONA|O_QUE_SEMPRE_ESCALA|PERGUNTAS_FREQUENTES|OUTRAS_INFORMACOES|CAMPO_LIVRE|AJUSTE_CERCA|AJUSTE_DA_CERCA|LIMITADORES|REGRAS_DE_DECISAO|AVISOS_E_NOVIDADES)\b/,
-  /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo|registrar_pedido|atualizar_pedido|cancelar_pedido|o_que_mudou)\b/,
+  /\b(suggestBook|bookReason|leadNome|leadIntencao|leadResumo|registrar_pedido|atualizar_pedido|cancelar_pedido|o_que_mudou|buscar_documentos|enviar_documento)\b/,
+  // Títulos e marcador de documentos (T14)
+  /DOCUMENTOS\s+DO\s+NEG[ÓO]CIO/,
+  /\[documento enviado\]/i,
   // Marcadores de bloco do prompt e das instruções de continuação/anúncio do motor
-  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|estado_encaminhamento|continuacao|origem_anuncio|pedidos_agenda_e_pagamento|desvios|modo|canais_do_cliente|resumo_conversa)>/,
+  /<\/?(seguranca|identidade|idioma|como_voce_fala|o_que_voce_faz|cerca|agenda_e_pagamento|quando_nao_sabe|mensagem_curta|dados_do_cliente|audio_e_midia|como_encaminhar|formato_de_resposta|cerebro|dados_do_momento|estado_encaminhamento|continuacao|origem_anuncio|pedidos_agenda_e_pagamento|desvios|modo|canais_do_cliente|resumo_conversa|documentos)>/,
 ]
 
 function allText(response: AiResponse): string {

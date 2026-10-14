@@ -114,6 +114,9 @@ type Turno =
       segundoCard: boolean
       // Resultado da ferramenta no turno ("registrado", "faltando: data"...)
       ferramenta: string | null
+      // Documentos (T14): nomes dos enviados e o que cada busca achou
+      documentos: string[]
+      buscas: string[]
       bloqueio: string | null
     }
 
@@ -143,6 +146,9 @@ type RespostaPorta = {
   campos: Campo[] | null
   // Tudo que as ferramentas registraram no turno (novo, atualização, cancelamento; T10)
   registrados?: Omit<EncaminhamentoAnterior, 'em'>[]
+  // Documentos (T14): nomes dos enviados e, por busca, os documentos achados ou "sem resultado"
+  documentos?: string[]
+  buscas?: string[]
   bloqueio: string | null
   provedor: string | null
   modelo: string | null
@@ -328,7 +334,10 @@ class Simulador {
       { role: 'user' as const, content: '(O atendimento está esperando sua primeira mensagem.)' },
       ...turnos.map((t) => ({
         role: t.role === 'user' ? ('assistant' as const) : ('user' as const),
-        content: t.texto,
+        content:
+          t.role === 'assistant' && t.documentos.length
+            ? `${t.texto}\n\n(anexo: ${t.documentos.map((d) => `${d}.pdf`).join(', ')})`
+            : t.texto,
       })),
     ]
     const resposta = await this.client.messages.create(
@@ -549,7 +558,13 @@ async function conversar(args: {
         fim = 'cliente_encerrou'
         break
       }
-      const historico = turnos.map((t) => ({ role: t.role, texto: t.texto }))
+      // Documento enviado volta no histórico com o mesmo marcador do WhatsApp (T14)
+      const historico = turnos.flatMap((t) => [
+        { role: t.role, texto: t.texto },
+        ...(t.role === 'assistant'
+          ? t.documentos.map((d) => ({ role: 'assistant' as const, texto: `[documento enviado] ${d}` }))
+          : []),
+      ])
       turnos.push({ role: 'user', texto: mensagem })
       const r = await porta.responder(clienteId, historico, mensagem, encaminhamentos)
       args.versao.provedor ??= r.provedor
@@ -576,6 +591,8 @@ async function conversar(args: {
         card: novoCard ? card : null,
         segundoCard: r.encaminhou && !novoCard,
         ferramenta: r.motivo,
+        documentos: r.documentos ?? [],
+        buscas: r.buscas ?? [],
         bloqueio: r.bloqueio,
       })
     }
@@ -647,6 +664,8 @@ function conversaEmTexto(r: Resultado, cena: Cena): string {
       t.encaminhou ? 'CARD GERADO' : null,
       t.segundoCard ? 'registrou outro encaminhamento' : null,
       t.ferramenta ? `ferramenta: ${t.ferramenta}` : null,
+      ...t.buscas.map((b) => `busca: ${b}`),
+      ...t.documentos.map((d) => `enviou documento: ${d}`),
       t.bloqueio ? `bloqueio: ${t.bloqueio}` : null,
     ].filter(Boolean)
     linhas.push(`**Concierge (${n}):** ${t.texto}${marcas.length ? `\n_[${marcas.join(' · ')}]_` : ''}`, '')

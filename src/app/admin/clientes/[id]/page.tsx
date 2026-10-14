@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import type { CampoPedido, CanaisFallback } from '@/lib/admin/cadastro'
 import LogoutButton from '../../LogoutButton'
 import CadastroForm from '../CadastroForm'
+import Documentos from '../Documentos'
+import { conferirProcessando } from '@/lib/documentos'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,14 @@ export default async function CadastroClientePage({
   }
 
   const { id } = await params
+
+  // Documento que ficou "processando" no upload: pergunta de novo à OpenAI (T14)
+  await conferirProcessando(id)
+  const documentos = await prisma.documento.findMany({
+    where: { clienteId: id },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, nome: true, arquivoNome: true, tamanho: true, status: true, podeEnviar: true },
+  })
 
   const cliente = await prisma.cliente.findUnique({
     where: { id },
@@ -95,6 +105,9 @@ export default async function CadastroClientePage({
                 numeroExibicao: cliente.numeroExibicao ?? '',
               }}
             />
+            <div className="cadastro cadastro-documentos">
+              <Documentos clienteId={cliente.id} documentos={documentos} />
+            </div>
           </>
         )}
       </div>

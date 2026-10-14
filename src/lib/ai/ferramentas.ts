@@ -16,5 +16,6 @@ export type Ferramentas = {
   executar: (nome: string, args: unknown) => Promise<string>
 }
 
-// Rodadas em que a IA ainda pode chamar ferramenta; na seguinte ela é obrigada a responder
-export const MAX_RODADAS_FERRAMENTA = 2
+// Rodadas em que a IA ainda pode chamar ferramenta; na seguinte ela é obrigada a responder.
+// 4 desde a T14: buscar nos documentos, buscar de novo, registrar ou enviar, e folga.
+export const MAX_RODADAS_FERRAMENTA = 4

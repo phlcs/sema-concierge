@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import type { MensagemTela } from '@/lib/demo/conversa'
 import type { CardHandoff } from '@/lib/demo/handoff'
+import { PREFIXO_DOCUMENTO } from '@/lib/documentos/marcador'
 import AudioBolha from './AudioBolha'
 import { IconeEnviar, IconeLixeira, IconeMicrofone, IconeTicks, IconeVoltar } from './Icones'
 
@@ -18,11 +19,18 @@ const TXT_SEM_TRANSCRICAO = 'Não foi possível transcrever este áudio.'
 
 // `audio` marca a bolha como áudio. `texto` é a transcrição ('' enquanto transcreve).
 // `url` é a gravação no navegador (null depois de recarregar: o áudio nunca é guardado).
-type MensagemChat = MensagemTela & { audio?: { url: string | null; seg: number | null } }
+// `documento` (T14) marca a bolha como anexo: o nome do documento enviado pela IA.
+type MensagemChat = MensagemTela & {
+  audio?: { url: string | null; seg: number | null }
+  documento?: string
+}
 
 function doHistorico(m: MensagemTela): MensagemChat {
   if (m.role === 'user' && m.texto.startsWith(PREFIXO_AUDIO)) {
     return { ...m, texto: m.texto.slice(PREFIXO_AUDIO.length), audio: { url: null, seg: null } }
+  }
+  if (m.role === 'assistant' && m.texto.startsWith(PREFIXO_DOCUMENTO)) {
+    return { ...m, documento: m.texto.slice(PREFIXO_DOCUMENTO.length) }
   }
   return m
 }
@@ -122,16 +130,28 @@ export default function Chat(props: {
         texto?: string
         transcricao?: string
         handoff?: CardHandoff
+        documentos?: string[]
       }
       if (typeof data.texto !== 'string') throw new Error('resposta sem texto')
-      const resposta = { role: 'assistant' as const, texto: data.texto, hora: horaAgora() }
+      const hora = horaAgora()
+      const resposta = { role: 'assistant' as const, texto: data.texto, hora }
+      const anexos: MensagemChat[] = (data.documentos ?? []).map((nome) => ({
+        role: 'assistant',
+        texto: '',
+        hora,
+        documento: nome,
+      }))
       setMensagens((atual) => {
-        if (!ehAudio) return [...atual, resposta]
+        if (!ehAudio) return [...atual, resposta, ...anexos]
         // A bolha do áudio mostra o que foi entendido, para avaliar a transcrição
         const texto = data.transcricao?.startsWith(PREFIXO_AUDIO)
           ? data.transcricao.slice(PREFIXO_AUDIO.length)
           : TXT_SEM_TRANSCRICAO
-        return [...atual.map((m, i) => (i === anteriores.length ? { ...m, texto } : m)), resposta]
+        return [
+          ...atual.map((m, i) => (i === anteriores.length ? { ...m, texto } : m)),
+          resposta,
+          ...anexos,
+        ]
       })
       if (data.handoff) onHandoff(data.handoff)
     } catch {
@@ -232,6 +252,18 @@ export default function Chat(props: {
             <div className="bubble">
               {m.audio ? (
                 <AudioBolha url={m.audio.url} seg={m.audio.seg} transcricao={m.texto} />
+              ) : m.documento ? (
+                <a
+                  className="anexo"
+                  href={`/demo/${token}/documento?nome=${encodeURIComponent(m.documento)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span className="anexo-icone" aria-hidden="true">
+                    PDF
+                  </span>
+                  <span className="anexo-nome">{m.documento}</span>
+                </a>
               ) : (
                 m.texto
               )}

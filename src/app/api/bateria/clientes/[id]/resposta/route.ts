@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getAiConfig } from '@/lib/ai/config'
+import { carregarDocumentos } from '@/lib/documentos'
 import { VERSAO_PROMPT } from '@/lib/ai/build-prestador-prompt'
 import { responderMensagem } from '@/lib/atendimento/motor'
 import { nomeDoPedido, portaMemoria } from '@/lib/atendimento/encaminhamento'
@@ -89,7 +90,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     mudou: e.mudou,
     createdAt: new Date(e.em),
   }))
-  const { mensagem, bloqueio, encaminhamentos, resultadosFerramenta } = await responderMensagem({
+  const { mensagem, bloqueio, encaminhamentos, resultadosFerramenta, documentosEnviados, buscas } =
+    await responderMensagem({
     cerebro: cliente.cerebro,
     mensagens: [corpo.mensagem.trim()],
     ehPrimeiraMensagem: corpo.historico.length === 0,
@@ -98,6 +100,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     contexto,
     cadastro: { modo: cliente.modo, canaisFallback: cliente.canaisFallback },
     encaminhamento: { camposPedido: cliente.camposPedido, porta: portaMemoria(anteriores) },
+    // Mesmos documentos do WhatsApp e do link de teste (T14); nada é enviado
+    documentos: await carregarDocumentos(cliente.id),
   })
   // O card avaliado é o do encaminhamento novo; atualizações e cancelamentos vão em
   // "registrados", para o roteiro reenviar na rodada seguinte
@@ -121,6 +125,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       resumo: e.resumo,
       mudou: e.mudou,
     })),
+    // Documentos (T14): o que a IA mandou enviar e o que achou em cada busca
+    documentos: documentosEnviados.map((d) => d.nome),
+    buscas: buscas.map((b) => (b.trechos ? b.documentos.join(', ') : 'sem resultado')),
     bloqueio,
     ...infoProvedor(),
     versaoPrompt: VERSAO_PROMPT,

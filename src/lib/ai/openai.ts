@@ -12,6 +12,8 @@ import type {
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
+const MAX_RESULTADO_REGISTRO = 1000
+
 let _client: OpenAI | undefined
 
 function getClient(apiKey: string): OpenAI {
@@ -139,7 +141,8 @@ export async function callOpenAI(
         args = null
       }
       const resultado = await ferramentas.executar(pedida.name, args)
-      chamadas.push({ nome: pedida.name, resultado })
+      // O registro guarda o começo: o resultado da busca nos documentos (T14) é longo
+      chamadas.push({ nome: pedida.name, resultado: resultado.slice(0, MAX_RESULTADO_REGISTRO) })
       input.push({ type: 'function_call_output', call_id: pedida.call_id, output: resultado })
     }
   }

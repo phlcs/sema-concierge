@@ -1,4 +1,5 @@
-import OpenAI, { toFile } from 'openai'
+import { toFile } from 'openai'
+import { clienteOpenAI } from './chave-openai'
 import { logger } from '@/lib/logger'
 import { estimarCustoTranscricaoUsd } from './precos'
 import { registrarResposta, USO_VAZIO, type ContextoRegistro } from './registro'
@@ -8,16 +9,6 @@ const TIMEOUT_MS = 30_000
 
 export function modeloDeAudio(): string {
   return process.env.AI_AUDIO_MODEL?.trim() || MODELO_PADRAO
-}
-
-// A transcrição é sempre da OpenAI, qualquer que seja o AI_PROVIDER do atendimento.
-// Mesmas variáveis que getAiConfig() aceita para o provider openai.
-function chaveOpenAI(): string {
-  const chave =
-    process.env.OPENAI_API_KEY ||
-    (process.env.AI_PROVIDER?.trim().toLowerCase() === 'openai' ? process.env.AI_API_KEY : '')
-  if (!chave) throw new Error('chave da OpenAI não configurada (OPENAI_API_KEY) para transcrever áudio')
-  return chave
 }
 
 const EXTENSOES: Record<string, string> = {
@@ -30,7 +21,6 @@ const EXTENSOES: Record<string, string> = {
   'audio/wav': 'wav',
 }
 
-let _client: { chave: string; client: OpenAI } | undefined
 
 // Devolve o texto do áudio. Lança se a chave faltar, a chamada falhar ou o texto vier vazio.
 // O texto transcrito nunca vai para o log. Cada chamada deixa um registro técnico (T5);
@@ -74,13 +64,12 @@ export async function transcreverAudio(
 
   let registrado = false
   try {
-    const chave = chaveOpenAI()
-    if (_client?.chave !== chave) _client = { chave, client: new OpenAI({ apiKey: chave }) }
+    const client = clienteOpenAI()
 
     const tipo = mime.split(';')[0].trim().toLowerCase()
     const file = await toFile(buffer, `audio.${EXTENSOES[tipo] ?? 'ogg'}`, { type: tipo })
 
-    const res = await _client.client.audio.transcriptions.create(
+    const res = await client.audio.transcriptions.create(
       { file, model, language: 'pt' },
       { timeout: TIMEOUT_MS },
     )

@@ -475,6 +475,35 @@ body:has(.sema-demo) {
 .sema-demo .line.user .bubble {
   background: #dcf5c4;
 }
+/* Anexo de documento enviado pela IA (T14) */
+.sema-demo .anexo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--neutral-200);
+  color: var(--bubble-text);
+  text-decoration: none;
+  white-space: normal;
+}
+.sema-demo .anexo:hover {
+  background: var(--surface);
+}
+.sema-demo .anexo-icone {
+  flex: none;
+  padding: 6px 5px;
+  border-radius: 4px;
+  background: #c8473a;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sema-demo .anexo-nome {
+  font-weight: 500;
+}
 .sema-demo .time {
   float: right;
   margin: 7px 0 0 12px;

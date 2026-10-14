@@ -785,3 +785,37 @@
 .sema-admin .ativar {
   margin-top: 8px;
 }
+
+/* Documentos do cliente (T14) */
+.sema-admin .cadastro-documentos {
+  margin-top: 16px;
+}
+
+.sema-admin .linha-documento {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(244, 246, 236, 0.12);
+  flex-wrap: wrap;
+}
+
+.sema-admin .documento-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.sema-admin .documento-info .muted {
+  font-size: 13px;
+}
+
+.sema-admin .upload-documento {
+  margin-top: 16px;
+}
+
+.sema-admin .upload-documento input[type='file'] {
+  font-size: 14px;
+}

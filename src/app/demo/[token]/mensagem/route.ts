@@ -19,6 +19,8 @@ import {
 import type { ContextoRegistro } from '@/lib/ai/registro'
 import { atualizarResumoDemo, carregarResumoDemo } from '@/lib/atendimento/resumo'
 import { COOKIE_SESSAO, novaSessao, opcoesCookieSessao, sessaoValida } from '@/lib/demo/sessao'
+import { carregarDocumentos } from '@/lib/documentos'
+import { marcadorDocumento } from '@/lib/documentos/marcador'
 
 const LIMITE_CORPO_BYTES = 4096
 // Áudio gravado no navegador vem em multipart: o arquivo mais um pouco de cabeçalho
@@ -124,7 +126,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const recebidaEm = new Date()
   const ehPrimeiraMensagem = (await contarMensagensSessao(demo.id, sessaoId)) === 0
 
-  const { mensagem, bloqueio, encaminhamentos } = await responderMensagem({
+  const { mensagem, bloqueio, encaminhamentos, documentosEnviados } = await responderMensagem({
     cerebro: demo.cerebro,
     mensagens: [transcricao ? { texto, deAudio: true as const } : texto],
     ehPrimeiraMensagem,
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     contexto,
     cadastro: { modo: demo.modo, canaisFallback: demo.canaisFallback },
     encaminhamento: { camposPedido: demo.camposPedido, porta: portaTeste(demo.id, sessaoId) },
+    documentos: await carregarDocumentos(demo.id),
   })
 
   await salvarMensagemDemo({
@@ -167,6 +170,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     handoff: lead,
   })
 
+  // Documentos (T14): nada é enviado; a tela mostra um anexo que abre o PDF. O marcador
+  // no histórico faz a IA saber o que já mandou e a tela redesenhar o anexo ao recarregar.
+  for (const [i, doc] of documentosEnviados.entries()) {
+    await salvarMensagemDemo({
+      clienteId: demo.id,
+      sessaoId,
+      role: 'ASSISTANT',
+      texto: marcadorDocumento(doc.nome),
+      createdAt: new Date(respondidaEm.getTime() + i + 1),
+    })
+  }
+
   if (registrado) {
     handoff = montarCardHandoff({
       emailExibicao: demo.emailExibicao,
@@ -193,6 +208,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     texto: mensagem,
     ...(transcricao ? { transcricao } : {}),
     ...(handoff ? { handoff } : {}),
+    ...(documentosEnviados.length ? { documentos: documentosEnviados.map((d) => d.nome) } : {}),
   })
   res.cookies.set(COOKIE_SESSAO, sessaoId, opcoesCookieSessao(token, demo.expiraEm))
   return res

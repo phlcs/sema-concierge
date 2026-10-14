@@ -40,12 +40,37 @@ model Cliente {
   destinoEncaminhamento String                 @default("email")
   // { principal: { tipo, contato }, sac?, rh?, compras?, imprensa?, urgencia? }
   canaisFallback        Json                   @default("{}")
+  // Pasta de busca (vector store) do cliente na OpenAI (T14). Criada no primeiro upload
+  vectorStoreId         String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   conversas             WhatsappConversation[]
   mensagensTeste        DemoMensagem[]
   encaminhamentos       Encaminhamento[]
   resumosTeste          DemoResumo[]
+  documentos            Documento[]
+}
+
+// Documentos do cliente (T14): PDFs que a IA consulta pela ferramenta buscar_documentos
+// e, se marcados, envia pela ferramenta enviar_documento. O arquivo fica aqui (para
+// mandar pelo WhatsApp) e uma cópia na pasta de busca do cliente na OpenAI.
+model Documento {
+  id           String   @id @default(cuid())
+  clienteId    String
+  // Nome que a IA vê e usa para escolher o que enviar (ex.: "Cardápio")
+  nome         String
+  arquivoNome  String
+  tamanho      Int
+  conteudo     Bytes
+  // Arquivo na OpenAI (nulo enquanto sobe ou se o upload falhou antes de criar)
+  openaiFileId String?
+  // processando | pronto | falha
+  status       String   @default("processando")
+  podeEnviar   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  cliente      Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, nome])
 }
 
 model WhatsappConversation {

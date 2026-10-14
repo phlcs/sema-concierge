@@ -1,15 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-export type Tema = 'Recebimento' | 'IA e resposta' | 'Envio' | 'Encaminhamento' | 'Interno'
+export type Tema = 'Recebimento' | 'IA e resposta' | 'Envio' | 'Encaminhamento' | 'Documentos' | 'Interno'
 export type Gravidade = 'Erro' | 'Aviso' | 'Informativo'
 
-export const TEMAS: Tema[] = ['Recebimento', 'IA e resposta', 'Envio', 'Encaminhamento', 'Interno']
+export const TEMAS: Tema[] = ['Recebimento', 'IA e resposta', 'Envio', 'Encaminhamento', 'Documentos', 'Interno']
 export const GRAVIDADES: Gravidade[] = ['Erro', 'Aviso', 'Informativo']
 
 // Catálogo da T5. Tema, nome e gravidade vivem aqui, num lugar só: quem registra
-// só diz a chave. Eventos de funções ainda não construídas (busca em documentos)
-// entram neste catálogo quando a função existir.
+// só diz a chave.
 const CATALOGO = {
   webhook_erro_geral: { tema: 'Recebimento', evento: 'Erro geral do webhook', gravidade: 'Erro' },
   webhook_assinatura_recusada: {
@@ -87,6 +86,29 @@ const CATALOGO = {
     evento: 'Encaminhamento em modo de teste (mock)',
     gravidade: 'Informativo',
   },
+  // Documentos (T14). "Documento consultado" leva o nome do documento e o trecho usado
+  // (texto do documento do cliente, nunca a pergunta nem a mensagem da pessoa).
+  documento_consultado: {
+    tema: 'Documentos',
+    evento: 'Documento consultado',
+    gravidade: 'Informativo',
+  },
+  busca_sem_resultado: {
+    tema: 'Documentos',
+    evento: 'Busca nos documentos sem resultado',
+    gravidade: 'Aviso',
+  },
+  busca_falha: { tema: 'Documentos', evento: 'Falha na busca nos documentos', gravidade: 'Erro' },
+  documento_falha_envio: {
+    tema: 'Documentos',
+    evento: 'Falha no envio do documento',
+    gravidade: 'Erro',
+  },
+  documento_falha_upload: {
+    tema: 'Documentos',
+    evento: 'Falha ao preparar documento para busca',
+    gravidade: 'Erro',
+  },
   conversa_marcada_revisao: {
     tema: 'Interno',
     evento: 'Conversa marcada para revisão',
@@ -100,6 +122,7 @@ const CATALOGO = {
 export type ChaveEvento = keyof typeof CATALOGO
 
 // Só identificadores e códigos: nada de texto de mensagem, nome, telefone ou e-mail.
+// Exceção: "Documento consultado" leva um trecho do documento do cliente (T14).
 export type DetalheEvento = Record<string, string | number | boolean | null>
 
 // Resumo seguro de um erro para o detalhe: tipo e, se houver, o status HTTP. A

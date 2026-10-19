@@ -83,6 +83,11 @@ model WhatsappConversation {
   // createdAt da última mensagem já resumida
   resumo          String?
   resumoAte       DateTime?
+  // Origem do anúncio de clique para WhatsApp (T50): ctwa_clid, objeto referral
+  // inteiro (inclui source_id, o ID do anúncio) e quando o clique chegou
+  ctwaClid        String?
+  referral        Json?
+  referralEm      DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   cliente         Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)

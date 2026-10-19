@@ -36,6 +36,7 @@ Para um retrato detalhado do código (prompt, cérebro, handoff, pontos frágeis
 - Mesmo provedor e modelo do atendimento, sempre em português, até 3.000 caracteres. Cada chamada fica no registro técnico com a função `resumo`; falha vira o evento "Falha ao gerar resumo da conversa" e a conversa segue sem resumo novo.
 - Onde fica: `WhatsappConversation.resumo` / `resumoAte` (WhatsApp) e tabela `DemoResumo` (uma linha por sessão do link de teste). A bateria não usa resumo (tarefa T47).
 - Código: `src/lib/atendimento/resumo.ts` (quando e o que resumir) e `src/lib/ai/resumir.ts` (a chamada à IA).
+- Origem do anúncio (T50): `WhatsappConversation` ganhou `ctwaClid` (código do clique do anúncio de clique para WhatsApp), `referral` (objeto inteiro, com o ID do anúncio) e `referralEm` (quando o clique chegou). Por enquanto são só colunas vazias; o webhook passa a gravar nelas em tarefa seguinte.
 
 ## Encaminhamento (T9, T10)
 

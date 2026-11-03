@@ -9,7 +9,9 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
-    "bateria": "tsx bateria/rodar.ts"
+    "bateria": "tsx bateria/rodar.ts",
+    "recuperacao": "tsx recuperacao/rodar.ts",
+    "test:recuperacao": "tsx --test recuperacao/core.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

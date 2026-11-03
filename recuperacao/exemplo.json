@@ -1,0 +1,15 @@
+{
+  "clienteId": "cliente-ficticio",
+  "negocio": "Empresa fictícia de atendimento automatizado para negócios",
+  "conversas": [
+    { "id": "exemplo-interesse", "mensagens": [
+      { "id": "u1", "role": "USER", "texto": "Qual é o valor para automatizar o atendimento da minha loja?", "createdAt": "2026-10-01T10:00:00.000Z" },
+      { "id": "a1", "role": "ASSISTANT", "texto": "Quantos atendimentos sua loja recebe por dia?", "createdAt": "2026-10-01T10:01:00.000Z" },
+      { "id": "u2", "role": "USER", "texto": "Informação posterior que não deve entrar na avaliação.", "createdAt": "2026-10-03T10:00:00.000Z" }
+    ] },
+    { "id": "exemplo-saudacao", "mensagens": [
+      { "id": "u3", "role": "USER", "texto": "oi", "createdAt": "2026-10-01T10:00:00.000Z" },
+      { "id": "a3", "role": "ASSISTANT", "texto": "Olá! Como posso ajudar?", "createdAt": "2026-10-01T10:01:00.000Z" }
+    ] }
+  ]
+}

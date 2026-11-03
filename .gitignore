@@ -49,3 +49,7 @@ _design-bundle/
 
 # Bateria de personas: cérebros baixados para montar personas (dado do cliente)
 bateria/.cerebros/
+
+# Dados privados da avaliação de recuperação
+recuperacao/resultados/
+recuperacao/dados/

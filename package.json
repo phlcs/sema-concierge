@@ -11,7 +11,8 @@
     "seed": "tsx prisma/seed.ts",
     "bateria": "tsx bateria/rodar.ts",
     "recuperacao": "tsx recuperacao/rodar.ts",
-    "test:recuperacao": "tsx --test recuperacao/core.test.ts"
+    "test:recuperacao": "tsx --test recuperacao/core.test.ts",
+    "test:recuperacao:dados": "tsx --test recuperacao/testes/estrutura-dados.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

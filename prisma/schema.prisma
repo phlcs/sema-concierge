@@ -49,6 +49,12 @@ model Cliente {
   encaminhamentos       Encaminhamento[]
   resumosTeste          DemoResumo[]
   documentos            Documento[]
+  // Lead Recovery (T02): só relações virtuais, nenhuma coluna nesta tabela
+  recuperacaoConfig     RecuperacaoConfig?
+  atividadesContato     AtividadeContato[]
+  recuperacaoAvaliacoes RecuperacaoAvaliacao[]
+  recuperacaoEnvios     RecuperacaoEnvio[]
+  recuperacaoBloqueios  RecuperacaoBloqueio[]
 }
 
 // Documentos do cliente (T14): PDFs que a IA consulta pela ferramenta buscar_documentos
@@ -74,25 +80,27 @@ model Documento {
 }
 
 model WhatsappConversation {
-  id              String            @id @default(cuid())
-  clienteId       String
-  numeroContato   String
-  handoffEm       DateTime?
-  revisar         Boolean           @default(false)
+  id                String             @id @default(cuid())
+  clienteId         String
+  numeroContato     String
+  handoffEm         DateTime?
+  revisar           Boolean            @default(false)
   // Resumo acumulativo das mensagens que saíram da janela de histórico (T11) e o
   // createdAt da última mensagem já resumida
-  resumo          String?
-  resumoAte       DateTime?
+  resumo            String?
+  resumoAte         DateTime?
   // Origem do anúncio de clique para WhatsApp (T50): ctwa_clid, objeto referral
   // inteiro (inclui source_id, o ID do anúncio) e quando o clique chegou
-  ctwaClid        String?
-  referral        Json?
-  referralEm      DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  cliente         Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  mensagens       WhatsappMessage[]
-  encaminhamentos Encaminhamento[]
+  ctwaClid          String?
+  referral          Json?
+  referralEm        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  cliente           Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  mensagens         WhatsappMessage[]
+  encaminhamentos   Encaminhamento[]
+  // Lead Recovery (T02): relação virtual, sem coluna nesta tabela
+  recuperacaoEnvios RecuperacaoEnvio[]
 
   @@unique([clienteId, numeroContato])
 }
@@ -243,6 +251,161 @@ model InterruptorGeral {
   ligadoEm    DateTime?
   clientesIds String[]
   updatedAt   DateTime  @updatedAt
+}
+
+// ─── Lead Recovery (T02) ──────────────────────────────────────────────────────
+// Só estrutura de dados. Referência: docs/lead-recovery/T01_ARQUITETURA.md §5,
+// com os ajustes descritos em docs/lead-recovery/T02_ESTRUTURA_DADOS.md.
+// Os CHECKs, o índice parcial e o gatilho de RecuperacaoEnvio vivem só na
+// migração SQL (o Prisma não os declara); ver a migração 20261104120000.
+
+// Configuração do módulo por cliente. SEM LINHA = DESLIGADO.
+model RecuperacaoConfig {
+  clienteId        String    @id
+  // desligado | simulacao | real
+  modo             String    @default("desligado")
+  // Só contatos com atividade a partir daqui são elegíveis
+  ativadoEm        DateTime?
+  templateNome     String?
+  templateIdioma   String    @default("pt_BR")
+  // Corpo exato aprovado na Meta: é o que vai para o histórico do Concierge
+  templateCorpo    String?
+  // Janela de envio no fuso de Brasília (hora cheia, [horaInicio, horaFim))
+  horaInicio       Int       @default(9)
+  horaFim          Int       @default(20)
+  // 0 = domingo ... 6 = sábado. Padrão: todos os dias
+  diasSemana       Int[]     @default([0, 1, 2, 3, 4, 5, 6])
+  // Descrição do negócio para o classificador
+  descricaoNegocio String?
+  atualizadoEm     DateTime  @updatedAt
+  cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+}
+
+// Última entrada do lead, gravada na chegada do webhook (qualquer tipo de mensagem).
+model AtividadeContato {
+  id                  String    @id @default(cuid())
+  clienteId           String
+  // normalizarNumero(): só dígitos
+  numeroContato       String
+  // message.from como veio da Meta (chave do buffer Redis)
+  fromBruto           String
+  // Relógio do servidor
+  ultimaEntradaEm     DateTime
+  // message.timestamp da Meta
+  ultimaEntradaMetaTs DateTime?
+  // wamid da última entrada (referência da Meta)
+  ultimoWamid         String?
+  ultimoTipo          String
+  // Contador incrementado a cada atividade: checagem otimista de concorrência
+  versao              Int       @default(1)
+  cliente             Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, numeroContato])
+  @@index([clienteId, ultimaEntradaEm])
+}
+
+// Um ciclo de inatividade avaliado (regras + IA + revisão manual + simulação).
+// Várias por contato (uma por referenciaEm). Simulação vive só aqui e nunca
+// consome a oportunidade de envio.
+model RecuperacaoAvaliacao {
+  id                 String             @id @default(cuid())
+  clienteId          String
+  numeroContato      String
+  conversaId         String?
+  // AtividadeContato.ultimaEntradaEm no momento da avaliação
+  referenciaEm       DateTime
+  // simulacao | real: modo do cliente quando foi avaliada
+  modo               String
+  // pendente | descartada_regra | classificada | erro | erro_definitivo |
+  // cancelada_atividade | bloqueada_verificacao | aguardando_revisao |
+  // aprovada | rejeitada | enviada | simulado_enviaria
+  status             String             @default("pendente")
+  // ex.: ja_tentado, encaminhamento, bloqueio, fora_horario
+  motivoRegra        String?
+  // recuperar | nao_recuperar | incerto
+  decisao            String?
+  motivo             String?
+  evidencias         Json?
+  sinais             Json?
+  modelo             String?
+  versaoPrompt       String?
+  registroRespostaId String?
+  falhasIa           Int                @default(0)
+  revisadoEm         DateTime?
+  revisaoMotivo      String?
+  // Texto que seria enviado, quando status = simulado_enviaria
+  corpoSimulado      String?
+  criadoEm           DateTime           @default(now())
+  atualizadoEm       DateTime           @updatedAt
+  cliente            Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  envios             RecuperacaoEnvio[]
+
+  @@unique([clienteId, numeroContato, referenciaEm, modo])
+  // Sustenta a FK composta de RecuperacaoEnvio (envio e avaliação do mesmo contato)
+  @@unique([id, clienteId, numeroContato])
+  @@index([clienteId, status, criadoEm])
+}
+
+// Tentativa REAL de envio. A auditoria sobrevive à exclusão da conversa
+// (conversaId vira nulo). Regra de unicidade: no máximo UMA linha que ocupa a
+// oportunidade por (clienteId, numeroContato), garantida por índice único
+// parcial na migração:
+//   WHERE NOT (status = 'rejeitado'
+//              OR (status = 'cancelado' AND tentativasMeta = 0
+//                  AND wamid IS NULL AND erroCodigo IS NULL AND erroHttp IS NULL))
+// Libera nova tentativa: rejeição definitiva da Meta e cancelamento comprovadamente
+// anterior a qualquer chamada. Aceito, incerto, enviando e adiado consomem.
+model RecuperacaoEnvio {
+  id                 String                @id @default(cuid())
+  clienteId          String
+  numeroContato      String
+  conversaId         String?
+  avaliacaoId        String
+  // enviando | aceito | entregue | lido | falhou | incerto | adiado | rejeitado | cancelado
+  status             String
+  templateNome       String
+  templateIdioma     String
+  corpo              String
+  wamid              String?               @unique
+  // Chamadas feitas à Meta. Gravar 1 (commit) ANTES do HTTP; nunca diminui
+  tentativasMeta     Int                   @default(0)
+  erroCodigo         Int?
+  erroHttp           Int?
+  erroTitulo         String?
+  categoriaCobranca  String?
+  conflitoAtividade  Boolean               @default(false)
+  // WhatsappMessage.id, sem FK: a linha do histórico pode ser removida sem perder a auditoria
+  mensagemId         String?
+  mensagemRemovidaEm DateTime?
+  reivindicadoEm     DateTime              @default(now())
+  aceitoEm           DateTime?
+  entregueEm         DateTime?
+  lidoEm             DateTime?
+  falhouEm           DateTime?
+  incertoEm          DateTime?
+  respondidoEm       DateTime?
+  atualizadoEm       DateTime              @updatedAt
+  cliente            Cliente               @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  conversa           WhatsappConversation? @relation(fields: [conversaId], references: [id], onDelete: SetNull)
+  avaliacao          RecuperacaoAvaliacao  @relation(fields: [avaliacaoId, clienteId, numeroContato], references: [id, clienteId, numeroContato], onDelete: NoAction)
+
+  @@index([clienteId, numeroContato])
+  @@index([avaliacaoId])
+  @@index([status, reivindicadoEm])
+}
+
+// Opt-out e supressão. Nunca recupera quem está aqui.
+model RecuperacaoBloqueio {
+  id            String   @id @default(cuid())
+  clienteId     String
+  numeroContato String
+  // manual | palavra_chave | classificador | meta_131050 | meta_user_preferences
+  origem        String
+  motivo        String?
+  criadoEm      DateTime @default(now())
+  cliente       Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, numeroContato])
 }
 
 enum MessageRole {
